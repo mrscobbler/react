@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ReactNativeFiberErrorDialog
  * @flow
@@ -23,29 +21,28 @@ import type {CapturedError} from 'ReactFiberScheduler';
 function ReactNativeFiberErrorDialog(capturedError: CapturedError): boolean {
   const {componentStack, error} = capturedError;
 
-  let errorMessage: string;
-  let errorStack: string;
-  let errorType: Class<Error>;
+  let errorToHandle: Error;
 
   // Typically Errors are thrown but eg strings or null can be thrown as well.
-  if (error && typeof error === 'object') {
+  if (error instanceof Error) {
     const {message, name} = error;
 
     const summary = message ? `${name}: ${message}` : name;
 
-    errorMessage = `${summary}\n\nThis error is located at:${componentStack}`;
-    errorStack = error.stack;
-    errorType = error.constructor;
+    errorToHandle = error;
+
+    try {
+      errorToHandle.message = `${summary}\n\nThis error is located at:${componentStack}`;
+    } catch (e) {}
+  } else if (typeof error === 'string') {
+    errorToHandle = new Error(
+      `${error}\n\nThis error is located at:${componentStack}`,
+    );
   } else {
-    errorMessage = `Unspecified error at:${componentStack}`;
-    errorStack = '';
-    errorType = Error;
+    errorToHandle = new Error(`Unspecified error at:${componentStack}`);
   }
 
-  const newError = new errorType(errorMessage);
-  newError.stack = errorStack;
-
-  ExceptionsManager.handleException(newError, false);
+  ExceptionsManager.handleException(errorToHandle, false);
 
   // Return false here to prevent ReactFiberErrorLogger default behavior of
   // logging error details to console.error. Calls to console.error are

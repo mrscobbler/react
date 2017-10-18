@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ReactInputSelection
  */
@@ -12,6 +10,7 @@
 'use strict';
 
 var ReactDOMSelection = require('ReactDOMSelection');
+var {ELEMENT_NODE} = require('HTMLNodeType');
 
 var containsNode = require('fbjs/lib/containsNode');
 var focusNode = require('fbjs/lib/focusNode');
@@ -30,10 +29,12 @@ function isInDocument(node) {
 var ReactInputSelection = {
   hasSelectionCapabilities: function(elem) {
     var nodeName = elem && elem.nodeName && elem.nodeName.toLowerCase();
-    return nodeName &&
+    return (
+      nodeName &&
       ((nodeName === 'input' && elem.type === 'text') ||
         nodeName === 'textarea' ||
-        elem.contentEditable === 'true');
+        elem.contentEditable === 'true')
+    );
   },
 
   getSelectionInformation: function() {
@@ -64,7 +65,7 @@ var ReactInputSelection = {
       const ancestors = [];
       let ancestor = priorFocusedElem;
       while ((ancestor = ancestor.parentNode)) {
-        if (ancestor.nodeType === 1) {
+        if (ancestor.nodeType === ELEMENT_NODE) {
           ancestors.push({
             element: ancestor,
             left: ancestor.scrollLeft,

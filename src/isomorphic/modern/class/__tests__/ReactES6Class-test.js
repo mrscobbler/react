@@ -1,16 +1,15 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
 
 'use strict';
 
+var PropTypes;
 var React;
 var ReactDOM;
 
@@ -25,6 +24,7 @@ describe('ReactES6Class', () => {
   var renderedName = null;
 
   beforeEach(() => {
+    PropTypes = require('prop-types');
     React = require('react');
     ReactDOM = require('react-dom');
     container = document.createElement('div');
@@ -123,8 +123,8 @@ describe('ReactES6Class', () => {
       }
     }
     Foo.contextTypes = {
-      tag: React.PropTypes.string,
-      className: React.PropTypes.string,
+      tag: PropTypes.string,
+      className: PropTypes.string,
     };
 
     class Outer extends React.Component {
@@ -136,8 +136,8 @@ describe('ReactES6Class', () => {
       }
     }
     Outer.childContextTypes = {
-      tag: React.PropTypes.string,
-      className: React.PropTypes.string,
+      tag: PropTypes.string,
+      className: PropTypes.string,
     };
     test(<Outer />, 'SPAN', 'foo');
   });
@@ -400,15 +400,15 @@ describe('ReactES6Class', () => {
   });
 
   it('should throw AND warn when trying to access classic APIs', () => {
-    spyOn(console, 'error');
+    spyOn(console, 'warn');
     var instance = test(<Inner name="foo" />, 'DIV', 'foo');
     expect(() => instance.replaceState({})).toThrow();
     expect(() => instance.isMounted()).toThrow();
-    expect(console.error.calls.count()).toBe(2);
-    expect(console.error.calls.argsFor(0)[0]).toContain(
+    expect(console.warn.calls.count()).toBe(2);
+    expect(console.warn.calls.argsFor(0)[0]).toContain(
       'replaceState(...) is deprecated in plain JavaScript React classes',
     );
-    expect(console.error.calls.argsFor(1)[0]).toContain(
+    expect(console.warn.calls.argsFor(1)[0]).toContain(
       'isMounted(...) is deprecated in plain JavaScript React classes',
     );
   });
@@ -419,7 +419,7 @@ describe('ReactES6Class', () => {
         return <div className={this.context.bar} />;
       }
     }
-    Bar.contextTypes = {bar: React.PropTypes.string};
+    Bar.contextTypes = {bar: PropTypes.string};
     class Foo extends React.Component {
       getChildContext() {
         return {bar: 'bar-through-context'};
@@ -428,7 +428,7 @@ describe('ReactES6Class', () => {
         return <Bar />;
       }
     }
-    Foo.childContextTypes = {bar: React.PropTypes.string};
+    Foo.childContextTypes = {bar: PropTypes.string};
     test(<Foo />, 'DIV', 'bar-through-context');
   });
 

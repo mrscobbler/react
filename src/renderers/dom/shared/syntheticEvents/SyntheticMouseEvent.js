@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule SyntheticMouseEvent
  */
@@ -31,26 +29,15 @@ var MouseEventInterface = {
   altKey: null,
   metaKey: null,
   getModifierState: getEventModifierState,
-  button: function(event) {
-    // Webkit, Firefox, IE9+
-    // which:  1 2 3
-    // button: 0 1 2 (standard)
-    var button = event.button;
-    if ('which' in event) {
-      return button;
-    }
-    // IE<9
-    // which:  undefined
-    // button: 0 0 0
-    // button: 1 4 2 (onmouseup)
-    return button === 2 ? 2 : button === 4 ? 1 : 0;
-  },
+  button: null,
   buttons: null,
   relatedTarget: function(event) {
-    return event.relatedTarget ||
+    return (
+      event.relatedTarget ||
       (event.fromElement === event.srcElement
         ? event.toElement
-        : event.fromElement);
+        : event.fromElement)
+    );
   },
 };
 

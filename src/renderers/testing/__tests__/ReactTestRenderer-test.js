@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -12,17 +10,19 @@
 'use strict';
 
 var React = require('react');
-var ReactTestRenderer = require('ReactTestRenderer');
-var ReactDOMFeatureFlags = require('ReactDOMFeatureFlags');
+var ReactTestRenderer = require('react-test-renderer');
 var prettyFormat = require('pretty-format');
-var ReactFeatureFlags;
 
 // Kind of hacky, but we nullify all the instances to test the tree structure
 // with jasmine's deep equality function, and test the instances separate. We
 // also delete children props because testing them is more annoying and not
 // really important to verify.
-function cleanNode(node) {
+function cleanNodeOrArray(node) {
   if (!node) {
+    return;
+  }
+  if (Array.isArray(node)) {
+    node.forEach(cleanNodeOrArray);
     return;
   }
   if (node && node.instance) {
@@ -34,18 +34,13 @@ function cleanNode(node) {
     node.props = props;
   }
   if (Array.isArray(node.rendered)) {
-    node.rendered.forEach(cleanNode);
+    node.rendered.forEach(cleanNodeOrArray);
   } else if (typeof node.rendered === 'object') {
-    cleanNode(node.rendered);
+    cleanNodeOrArray(node.rendered);
   }
 }
 
 describe('ReactTestRenderer', () => {
-  beforeEach(() => {
-    ReactFeatureFlags = require('ReactFeatureFlags');
-    ReactFeatureFlags.disableNewFiberFeatures = false;
-  });
-
   function normalizeCodeLocInfo(str) {
     return str && str.replace(/\(at .+?:\d+\)/g, '(at **)');
   }
@@ -80,7 +75,7 @@ describe('ReactTestRenderer', () => {
 
     // $$typeof should not be enumerable.
     for (var key in object) {
-      if (Object.prototype.hasOwnProperty.call(object, key)) {
+      if (object.hasOwnProperty(key)) {
         expect(key).not.toBe('$$typeof');
       }
     }
@@ -145,10 +140,7 @@ describe('ReactTestRenderer', () => {
     expect(renderer.toJSON()).toEqual({
       type: 'div',
       props: {className: 'purple'},
-      children: [
-        ReactDOMFeatureFlags.useFiber ? '7' : 7,
-        {type: 'moo', props: {}, children: null},
-      ],
+      children: ['7', {type: 'moo', props: {}, children: null}],
     });
     expect(renders).toBe(6);
   });
@@ -443,7 +435,7 @@ describe('ReactTestRenderer', () => {
       onClick() {
         /* do nothing */
       }
-      unstable_handleError() {
+      componentDidCatch() {
         this.setState({error: true});
       }
     }
@@ -454,21 +446,12 @@ describe('ReactTestRenderer', () => {
       props: {},
       children: ['Happy Birthday!'],
     });
-    if (ReactDOMFeatureFlags.useFiber) {
-      expect(log).toEqual([
-        'Boundary render',
-        'Angry render',
-        'Boundary componentDidMount',
-        'Boundary render',
-      ]);
-    } else {
-      expect(log).toEqual([
-        'Boundary render',
-        'Angry render',
-        'Boundary render',
-        'Boundary componentDidMount',
-      ]);
-    }
+    expect(log).toEqual([
+      'Boundary render',
+      'Angry render',
+      'Boundary componentDidMount',
+      'Boundary render',
+    ]);
   });
 
   it('can update text nodes', () => {
@@ -503,7 +486,7 @@ describe('ReactTestRenderer', () => {
     renderer.update(<Component>{42}</Component>);
     expect(renderer.toJSON()).toEqual({
       type: 'div',
-      children: [ReactDOMFeatureFlags.useFiber ? '42' : 42],
+      children: ['42'],
       props: {},
     });
     renderer.update(<Component><div /></Component>);
@@ -526,7 +509,7 @@ describe('ReactTestRenderer', () => {
     var renderer = ReactTestRenderer.create(<Qoo />);
     var tree = renderer.toTree();
 
-    cleanNode(tree);
+    cleanNodeOrArray(tree);
 
     expect(prettyFormat(tree)).toEqual(
       prettyFormat({
@@ -557,7 +540,7 @@ describe('ReactTestRenderer', () => {
 
     expect(tree.instance).toBeInstanceOf(Foo);
 
-    cleanNode(tree);
+    cleanNodeOrArray(tree);
 
     expect(tree).toEqual({
       type: Foo,
@@ -566,6 +549,135 @@ describe('ReactTestRenderer', () => {
       instance: null,
       rendered: null,
     });
+  });
+
+  it('toTree() handles simple components that return arrays', () => {
+    const Foo = ({children}) => children;
+
+    const renderer = ReactTestRenderer.create(
+      <Foo>
+        <div>One</div>
+        <div>Two</div>
+      </Foo>,
+    );
+
+    var tree = renderer.toTree();
+
+    cleanNodeOrArray(tree);
+
+    expect(prettyFormat(tree)).toEqual(
+      prettyFormat({
+        type: Foo,
+        nodeType: 'component',
+        props: {},
+        instance: null,
+        rendered: [
+          {
+            instance: null,
+            nodeType: 'host',
+            props: {},
+            rendered: ['One'],
+            type: 'div',
+          },
+          {
+            instance: null,
+            nodeType: 'host',
+            props: {},
+            rendered: ['Two'],
+            type: 'div',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('toTree() handles complicated tree of fragments', () => {
+    class Foo extends React.Component {
+      render() {
+        return this.props.children;
+      }
+    }
+
+    const renderer = ReactTestRenderer.create(
+      <div>
+        <Foo>
+          <div>One</div>
+          <div>Two</div>
+          <Foo>
+            <div>Three</div>
+          </Foo>
+        </Foo>
+        <div>Four</div>
+      </div>,
+    );
+
+    var tree = renderer.toTree();
+
+    cleanNodeOrArray(tree);
+
+    expect(prettyFormat(tree)).toEqual(
+      prettyFormat({
+        type: 'div',
+        instance: null,
+        nodeType: 'host',
+        props: {},
+        rendered: [
+          {
+            type: Foo,
+            nodeType: 'component',
+            props: {},
+            instance: null,
+            rendered: [
+              {
+                type: 'div',
+                nodeType: 'host',
+                props: {},
+                instance: null,
+                rendered: ['One'],
+              },
+              {
+                type: 'div',
+                nodeType: 'host',
+                props: {},
+                instance: null,
+                rendered: ['Two'],
+              },
+              {
+                type: Foo,
+                nodeType: 'component',
+                props: {},
+                instance: null,
+                rendered: {
+                  type: 'div',
+                  nodeType: 'host',
+                  props: {},
+                  instance: null,
+                  rendered: ['Three'],
+                },
+              },
+            ],
+          },
+          {
+            type: 'div',
+            nodeType: 'host',
+            props: {},
+            instance: null,
+            rendered: ['Four'],
+          },
+        ],
+      }),
+    );
+  });
+
+  it('root instance and createNodeMock ref return the same value', () => {
+    var createNodeMock = ref => ({node: ref});
+    var refInst = null;
+    var renderer = ReactTestRenderer.create(
+      <div ref={ref => (refInst = ref)} />,
+      {createNodeMock},
+    );
+    var root = renderer.getInstance();
+    expect(root).toEqual(refInst);
   });
 
   it('toTree() renders complicated trees of composites and hosts', () => {
@@ -610,7 +722,7 @@ describe('ReactTestRenderer', () => {
     expect(tree.instance).toBeInstanceOf(Bam);
     expect(tree.rendered.instance).toBeInstanceOf(Bar);
 
-    cleanNode(tree);
+    cleanNodeOrArray(tree);
 
     expect(prettyFormat(tree)).toEqual(
       prettyFormat({
@@ -662,39 +774,37 @@ describe('ReactTestRenderer', () => {
     );
   });
 
-  if (ReactDOMFeatureFlags.useFiber) {
-    it('can update text nodes when rendered as root', () => {
-      var renderer = ReactTestRenderer.create(['Hello', 'world']);
-      expect(renderer.toJSON()).toEqual(['Hello', 'world']);
-      renderer.update(42);
-      expect(renderer.toJSON()).toEqual('42');
-      renderer.update([42, 'world']);
-      expect(renderer.toJSON()).toEqual(['42', 'world']);
+  it('can update text nodes when rendered as root', () => {
+    var renderer = ReactTestRenderer.create(['Hello', 'world']);
+    expect(renderer.toJSON()).toEqual(['Hello', 'world']);
+    renderer.update(42);
+    expect(renderer.toJSON()).toEqual('42');
+    renderer.update([42, 'world']);
+    expect(renderer.toJSON()).toEqual(['42', 'world']);
+  });
+
+  it('can render and update root fragments', () => {
+    var Component = props => props.children;
+
+    var renderer = ReactTestRenderer.create([
+      <Component key="a">Hi</Component>,
+      <Component key="b">Bye</Component>,
+    ]);
+    expect(renderer.toJSON()).toEqual(['Hi', 'Bye']);
+    renderer.update(<div />);
+    expect(renderer.toJSON()).toEqual({
+      type: 'div',
+      children: null,
+      props: {},
     });
-
-    it('can render and update root fragments', () => {
-      var Component = props => props.children;
-
-      var renderer = ReactTestRenderer.create([
-        <Component>Hi</Component>,
-        <Component>Bye</Component>,
-      ]);
-      expect(renderer.toJSON()).toEqual(['Hi', 'Bye']);
-      renderer.update(<div />);
-      expect(renderer.toJSON()).toEqual({
+    renderer.update([<div key="a">goodbye</div>, 'world']);
+    expect(renderer.toJSON()).toEqual([
+      {
         type: 'div',
-        children: null,
+        children: ['goodbye'],
         props: {},
-      });
-      renderer.update([<div>goodbye</div>, 'world']);
-      expect(renderer.toJSON()).toEqual([
-        {
-          type: 'div',
-          children: ['goodbye'],
-          props: {},
-        },
-        'world',
-      ]);
-    });
-  }
+      },
+      'world',
+    ]);
+  });
 });

@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule TapEventPlugin
  * @flow
@@ -19,10 +17,6 @@ var TouchEventUtils = require('fbjs/lib/TouchEventUtils');
 
 var isStartish = EventPluginUtils.isStartish;
 var isEndish = EventPluginUtils.isEndish;
-
-import type {EventTypes, PluginModule} from 'PluginModuleType';
-import type {ReactInstance} from 'ReactInstanceType';
-import type {TopLevelTypes} from 'EventConstants';
 
 /**
  * We are extending the Flow 'Touch' declaration to enable using bracket
@@ -96,7 +90,7 @@ var dependencies = ['topMouseDown', 'topMouseMove', 'topMouseUp'].concat(
   touchEvents,
 );
 
-var eventTypes: EventTypes = {
+var eventTypes = {
   touchTap: {
     phasedRegistrationNames: {
       bubbled: 'onTouchTap',
@@ -110,14 +104,14 @@ var usedTouch = false;
 var usedTouchTime = 0;
 var TOUCH_DELAY = 1000;
 
-var TapEventPlugin: PluginModule<_Touch> = {
+var TapEventPlugin = {
   tapMoveThreshold: tapMoveThreshold,
 
   eventTypes: eventTypes,
 
   extractEvents: function(
-    topLevelType: TopLevelTypes,
-    targetInst: ReactInstance,
+    topLevelType: mixed,
+    targetInst: mixed,
     nativeEvent: _Touch,
     nativeEventTarget: EventTarget,
   ) {

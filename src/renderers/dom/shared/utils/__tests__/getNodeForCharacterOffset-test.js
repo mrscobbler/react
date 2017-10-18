@@ -1,18 +1,15 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
 
 'use strict';
 
-var getTestDocument = require('getTestDocument');
-
+// TODO: can we express this test with only public API?
 var getNodeForCharacterOffset = require('getNodeForCharacterOffset');
 
 // Create node from HTML string
@@ -20,6 +17,17 @@ function createNode(html) {
   var node = (getTestDocument() || document).createElement('div');
   node.innerHTML = html;
   return node;
+}
+
+function getTestDocument(markup) {
+  var doc = document.implementation.createHTMLDocument('');
+  doc.open();
+  doc.write(
+    markup ||
+      '<!doctype html><html><meta charset=utf-8><title>test doc</title>',
+  );
+  doc.close();
+  return doc;
 }
 
 // Check getNodeForCharacterOffset return value matches expected result.

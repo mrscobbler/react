@@ -1,10 +1,8 @@
 /**
- * Copyright 2015-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2015-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule validateDOMNesting
  */
@@ -12,12 +10,11 @@
 'use strict';
 
 var emptyFunction = require('fbjs/lib/emptyFunction');
-var getComponentName = require('getComponentName');
-var warning = require('fbjs/lib/warning');
 
 var validateDOMNesting = emptyFunction;
 
 if (__DEV__) {
+  var warning = require('fbjs/lib/warning');
   var {getCurrentFiberStackAddendum} = require('ReactDebugCurrentFiber');
 
   // This validation code was written based on the HTML5 parsing spec:
@@ -233,7 +230,6 @@ if (__DEV__) {
       // but
       case 'option':
         return tag === '#text';
-
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-intd
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-incaption
       // No special behavior since these rules fall back to "in body" mode for
@@ -241,39 +237,42 @@ if (__DEV__) {
 
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-intr
       case 'tr':
-        return tag === 'th' ||
+        return (
+          tag === 'th' ||
           tag === 'td' ||
           tag === 'style' ||
           tag === 'script' ||
-          tag === 'template';
-
+          tag === 'template'
+        );
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-intbody
       case 'tbody':
       case 'thead':
       case 'tfoot':
-        return tag === 'tr' ||
+        return (
+          tag === 'tr' ||
           tag === 'style' ||
           tag === 'script' ||
-          tag === 'template';
-
+          tag === 'template'
+        );
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-incolgroup
       case 'colgroup':
         return tag === 'col' || tag === 'template';
-
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-intable
       case 'table':
-        return tag === 'caption' ||
+        return (
+          tag === 'caption' ||
           tag === 'colgroup' ||
           tag === 'tbody' ||
           tag === 'tfoot' ||
           tag === 'thead' ||
           tag === 'style' ||
           tag === 'script' ||
-          tag === 'template';
-
+          tag === 'template'
+        );
       // https://html.spec.whatwg.org/multipage/syntax.html#parsing-main-inhead
       case 'head':
-        return tag === 'base' ||
+        return (
+          tag === 'base' ||
           tag === 'basefont' ||
           tag === 'bgsound' ||
           tag === 'link' ||
@@ -283,8 +282,8 @@ if (__DEV__) {
           tag === 'noframes' ||
           tag === 'style' ||
           tag === 'script' ||
-          tag === 'template';
-
+          tag === 'template'
+        );
       // https://html.spec.whatwg.org/multipage/semantics.html#the-html-element
       case 'html':
         return tag === 'head' || tag === 'body';
@@ -302,12 +301,14 @@ if (__DEV__) {
       case 'h4':
       case 'h5':
       case 'h6':
-        return parentTag !== 'h1' &&
+        return (
+          parentTag !== 'h1' &&
           parentTag !== 'h2' &&
           parentTag !== 'h3' &&
           parentTag !== 'h4' &&
           parentTag !== 'h5' &&
-          parentTag !== 'h6';
+          parentTag !== 'h6'
+        );
 
       case 'rp':
       case 'rt':
@@ -403,83 +404,9 @@ if (__DEV__) {
     return null;
   };
 
-  /**
-   * Given a ReactCompositeComponent instance, return a list of its recursive
-   * owners, starting at the root and ending with the instance itself.
-   */
-  var findOwnerStack = function(instance) {
-    if (!instance) {
-      return [];
-    }
-
-    var stack = [];
-    do {
-      stack.push(instance);
-    } while ((instance = instance._currentElement._owner));
-    stack.reverse();
-    return stack;
-  };
-
-  var getOwnerInfo = function(
-    childInstance,
-    childTag,
-    ancestorInstance,
-    ancestorTag,
-    isParent,
-  ) {
-    var childOwner = childInstance && childInstance._currentElement._owner;
-    var ancestorOwner = ancestorInstance &&
-      ancestorInstance._currentElement._owner;
-
-    var childOwners = findOwnerStack(childOwner);
-    var ancestorOwners = findOwnerStack(ancestorOwner);
-
-    var minStackLen = Math.min(childOwners.length, ancestorOwners.length);
-    var i;
-
-    var deepestCommon = -1;
-    for (i = 0; i < minStackLen; i++) {
-      if (childOwners[i] === ancestorOwners[i]) {
-        deepestCommon = i;
-      } else {
-        break;
-      }
-    }
-
-    var UNKNOWN = '(unknown)';
-    var childOwnerNames = childOwners
-      .slice(deepestCommon + 1)
-      .map(inst => getComponentName(inst) || UNKNOWN);
-    var ancestorOwnerNames = ancestorOwners
-      .slice(deepestCommon + 1)
-      .map(inst => getComponentName(inst) || UNKNOWN);
-    var ownerInfo = []
-      .concat(
-        // If the parent and child instances have a common owner ancestor, start
-        // with that -- otherwise we just start with the parent's owners.
-        deepestCommon !== -1
-          ? getComponentName(childOwners[deepestCommon]) || UNKNOWN
-          : [],
-        ancestorOwnerNames,
-        ancestorTag,
-        // If we're warning about an invalid (non-parent) ancestry, add '...'
-        isParent ? [] : ['...'],
-        childOwnerNames,
-        childTag,
-      )
-      .join(' > ');
-
-    return ownerInfo;
-  };
-
   var didWarn = {};
 
-  validateDOMNesting = function(
-    childTag,
-    childText,
-    childInstance,
-    ancestorInfo,
-  ) {
+  validateDOMNesting = function(childTag, childText, ancestorInfo) {
     ancestorInfo = ancestorInfo || emptyAncestorInfo;
     var parentInfo = ancestorInfo.current;
     var parentTag = parentInfo && parentInfo.tag;
@@ -503,31 +430,11 @@ if (__DEV__) {
       return;
     }
 
-    var ancestorInstance = invalidParentOrAncestor.instance;
     var ancestorTag = invalidParentOrAncestor.tag;
-    var addendum;
+    var addendum = getCurrentFiberStackAddendum();
 
-    if (childInstance != null) {
-      addendum = ' See ' +
-        getOwnerInfo(
-          childInstance,
-          childTag,
-          ancestorInstance,
-          ancestorTag,
-          !!invalidParent,
-        ) +
-        '.';
-    } else {
-      addendum = getCurrentFiberStackAddendum();
-    }
-
-    var warnKey = !!invalidParent +
-      '|' +
-      childTag +
-      '|' +
-      ancestorTag +
-      '|' +
-      addendum;
+    var warnKey =
+      !!invalidParent + '|' + childTag + '|' + ancestorTag + '|' + addendum;
     if (didWarn[warnKey]) {
       return;
     }
@@ -540,7 +447,8 @@ if (__DEV__) {
         tagDisplayName = 'Text nodes';
       } else {
         tagDisplayName = 'Whitespace text nodes';
-        whitespaceInfo = " Make sure you don't have any extra whitespace between tags on " +
+        whitespaceInfo =
+          " Make sure you don't have any extra whitespace between tags on " +
           'each line of your source code.';
       }
     } else {
@@ -550,7 +458,8 @@ if (__DEV__) {
     if (invalidParent) {
       var info = '';
       if (ancestorTag === 'table' && childTag === 'tr') {
-        info += ' Add a <tbody> to your code to match the DOM tree generated by ' +
+        info +=
+          ' Add a <tbody> to your code to match the DOM tree generated by ' +
           'the browser.';
       }
       warning(
@@ -581,8 +490,10 @@ if (__DEV__) {
     ancestorInfo = ancestorInfo || emptyAncestorInfo;
     var parentInfo = ancestorInfo.current;
     var parentTag = parentInfo && parentInfo.tag;
-    return isTagValidWithParent(tag, parentTag) &&
-      !findInvalidAncestorForTag(tag, ancestorInfo);
+    return (
+      isTagValidWithParent(tag, parentTag) &&
+      !findInvalidAncestorForTag(tag, ancestorInfo)
+    );
   };
 }
 

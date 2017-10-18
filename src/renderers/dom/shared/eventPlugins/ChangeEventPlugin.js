@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ChangeEventPlugin
  */
@@ -67,8 +65,9 @@ var activeElementInst = null;
  */
 function shouldUseChangeEvent(elem) {
   var nodeName = elem.nodeName && elem.nodeName.toLowerCase();
-  return nodeName === 'select' ||
-    (nodeName === 'input' && elem.type === 'file');
+  return (
+    nodeName === 'select' || (nodeName === 'input' && elem.type === 'file')
+  );
 }
 
 function manualDispatchChangeEvent(nativeEvent) {
@@ -98,7 +97,8 @@ function runEventInBatch(event) {
 }
 
 function getInstIfValueChanged(targetInst) {
-  if (inputValueTracking.updateValueIfChanged(targetInst)) {
+  const targetNode = ReactDOMComponentTree.getNodeFromInstance(targetInst);
+  if (inputValueTracking.updateValueIfChanged(targetNode)) {
     return targetInst;
   }
 }
@@ -116,7 +116,8 @@ var isInputEventSupported = false;
 if (ExecutionEnvironment.canUseDOM) {
   // IE9 claims to support the input event but fails to trigger it when
   // deleting text, so we ignore its input events.
-  isInputEventSupported = isEventSupported('input') &&
+  isInputEventSupported =
+    isEventSupported('input') &&
     (!document.documentMode || document.documentMode > 9);
 }
 
@@ -205,9 +206,11 @@ function shouldUseClickEvent(elem) {
   // This approach works across all browsers, whereas `change` does not fire
   // until `blur` in IE8.
   var nodeName = elem.nodeName;
-  return nodeName &&
+  return (
+    nodeName &&
     nodeName.toLowerCase() === 'input' &&
-    (elem.type === 'checkbox' || elem.type === 'radio');
+    (elem.type === 'checkbox' || elem.type === 'radio')
+  );
 }
 
 function getTargetInstForClickEvent(topLevelType, targetInst) {

@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -13,17 +11,15 @@
 
 describe('onlyChild', () => {
   var React;
-  var onlyChild;
   var WrapComponent;
 
   beforeEach(() => {
     React = require('react');
-    onlyChild = require('onlyChild');
     WrapComponent = class extends React.Component {
       render() {
         return (
           <div>
-            {onlyChild(this.props.children, this.props.mapFn, this)}
+            {React.Children.only(this.props.children, this.props.mapFn, this)}
           </div>
         );
       }
@@ -38,7 +34,7 @@ describe('onlyChild', () => {
           <span />
         </WrapComponent>
       );
-      onlyChild(instance.props.children);
+      React.Children.only(instance.props.children);
     }).toThrow();
   });
 
@@ -49,7 +45,7 @@ describe('onlyChild', () => {
           {null}
         </WrapComponent>
       );
-      onlyChild(instance.props.children);
+      React.Children.only(instance.props.children);
     }).toThrow();
 
     expect(function() {
@@ -58,7 +54,7 @@ describe('onlyChild', () => {
           {undefined}
         </WrapComponent>
       );
-      onlyChild(instance.props.children);
+      React.Children.only(instance.props.children);
     }).toThrow();
   });
 
@@ -69,7 +65,7 @@ describe('onlyChild', () => {
           {[<span key="abc" />]}
         </WrapComponent>
       );
-      onlyChild(instance.props.children);
+      React.Children.only(instance.props.children);
     }).toThrow();
   });
 
@@ -80,7 +76,7 @@ describe('onlyChild', () => {
           {<span />}
         </WrapComponent>
       );
-      onlyChild(instance.props.children);
+      React.Children.only(instance.props.children);
     }).not.toThrow();
   });
 
@@ -90,6 +86,6 @@ describe('onlyChild', () => {
         <span />
       </WrapComponent>
     );
-    expect(onlyChild(instance.props.children)).toEqual(<span />);
+    expect(React.Children.only(instance.props.children)).toEqual(<span />);
   });
 });

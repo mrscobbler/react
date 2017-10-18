@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -23,7 +21,7 @@ describe('refs-destruction', () => {
 
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactTestUtils = require('ReactTestUtils');
+    ReactTestUtils = require('react-dom/test-utils');
 
     TestComponent = class extends React.Component {
       render() {
@@ -47,15 +45,13 @@ describe('refs-destruction', () => {
       true,
     );
     expect(
-      Object.keys(testInstance.refs || {}).filter(
-        key => testInstance.refs[key],
-      ).length,
+      Object.keys(testInstance.refs || {}).filter(key => testInstance.refs[key])
+        .length,
     ).toEqual(1);
     ReactDOM.unmountComponentAtNode(container);
     expect(
-      Object.keys(testInstance.refs || {}).filter(
-        key => testInstance.refs[key],
-      ).length,
+      Object.keys(testInstance.refs || {}).filter(key => testInstance.refs[key])
+        .length,
     ).toEqual(0);
   });
 
@@ -66,15 +62,13 @@ describe('refs-destruction', () => {
       true,
     );
     expect(
-      Object.keys(testInstance.refs || {}).filter(
-        key => testInstance.refs[key],
-      ).length,
+      Object.keys(testInstance.refs || {}).filter(key => testInstance.refs[key])
+        .length,
     ).toEqual(1);
     ReactDOM.render(<TestComponent destroy={true} />, container);
     expect(
-      Object.keys(testInstance.refs || {}).filter(
-        key => testInstance.refs[key],
-      ).length,
+      Object.keys(testInstance.refs || {}).filter(key => testInstance.refs[key])
+        .length,
     ).toEqual(0);
   });
 
@@ -93,15 +87,12 @@ describe('refs-destruction', () => {
       componentWillUnmount() {
         var self = this;
         // some async animation
-        setTimeout(
-          function() {
-            expect(function() {
-              ReactDOM.unmountComponentAtNode(self.div);
-            }).not.toThrow();
-            document.body.removeChild(self.div);
-          },
-          0,
-        );
+        setTimeout(function() {
+          expect(function() {
+            ReactDOM.unmountComponentAtNode(self.div);
+          }).not.toThrow();
+          document.body.removeChild(self.div);
+        }, 0);
       }
 
       render() {

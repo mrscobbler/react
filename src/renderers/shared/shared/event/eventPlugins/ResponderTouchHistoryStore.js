@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ResponderTouchHistoryStore
  * @flow
@@ -15,13 +13,12 @@
 const EventPluginUtils = require('EventPluginUtils');
 
 const invariant = require('fbjs/lib/invariant');
-const warning = require('fbjs/lib/warning');
 
-const {
-  isEndish,
-  isMoveish,
-  isStartish,
-} = EventPluginUtils;
+const {isEndish, isMoveish, isStartish} = EventPluginUtils;
+
+if (__DEV__) {
+  var warning = require('fbjs/lib/warning');
+}
 
 /**
  * Tracks the position and time of each active touch by `touch.identifier`. We
@@ -105,13 +102,15 @@ function resetTouchRecord(touchRecord: TouchRecord, touch: Touch): void {
 
 function getTouchIdentifier({identifier}: Touch): number {
   invariant(identifier != null, 'Touch object is missing identifier.');
-  warning(
-    identifier <= MAX_TOUCH_BANK,
-    'Touch identifier %s is greater than maximum supported %s which causes ' +
-      'performance issues backfilling array locations for all of the indices.',
-    identifier,
-    MAX_TOUCH_BANK,
-  );
+  if (__DEV__) {
+    warning(
+      identifier <= MAX_TOUCH_BANK,
+      'Touch identifier %s is greater than maximum supported %s which causes ' +
+        'performance issues backfilling array locations for all of the indices.',
+      identifier,
+      MAX_TOUCH_BANK,
+    );
+  }
   return identifier;
 }
 
@@ -193,9 +192,8 @@ const ResponderTouchHistoryStore = {
       nativeEvent.changedTouches.forEach(recordTouchStart);
       touchHistory.numberActiveTouches = nativeEvent.touches.length;
       if (touchHistory.numberActiveTouches === 1) {
-        touchHistory.indexOfSingleActiveTouch = nativeEvent.touches[
-          0
-        ].identifier;
+        touchHistory.indexOfSingleActiveTouch =
+          nativeEvent.touches[0].identifier;
       }
     } else if (isEndish(topLevelType)) {
       nativeEvent.changedTouches.forEach(recordTouchEnd);

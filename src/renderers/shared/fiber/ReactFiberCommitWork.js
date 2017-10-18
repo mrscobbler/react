@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ReactFiberCommitWork
  * @flow
@@ -26,42 +24,31 @@ var {
 } = ReactTypeOfWork;
 var {commitCallbacks} = require('ReactFiberUpdateQueue');
 var {onCommitUnmount} = require('ReactFiberDevToolsHook');
-var {invokeGuardedCallback} = require('ReactErrorUtils');
-
 var {
-  Placement,
-  Update,
-  Callback,
-  ContentReset,
-} = require('ReactTypeOfSideEffect');
+  invokeGuardedCallback,
+  hasCaughtError,
+  clearCaughtError,
+} = require('ReactErrorUtils');
+
+var {Placement, Update, ContentReset} = require('ReactTypeOfSideEffect');
 
 var invariant = require('fbjs/lib/invariant');
 
 if (__DEV__) {
-  var {
-    startPhaseTimer,
-    stopPhaseTimer,
-  } = require('ReactDebugFiberPerf');
+  var {startPhaseTimer, stopPhaseTimer} = require('ReactDebugFiberPerf');
 }
 
 module.exports = function<T, P, I, TI, PI, C, CX, PL>(
   config: HostConfig<T, P, I, TI, PI, C, CX, PL>,
-  captureError: (failedFiber: Fiber, error: Error) => Fiber | null,
+  captureError: (failedFiber: Fiber, error: mixed) => Fiber | null,
 ) {
-  const {
-    commitMount,
-    commitUpdate,
-    resetTextContent,
-    commitTextUpdate,
-    appendChild,
-    insertBefore,
-    removeChild,
-    getPublicInstance,
-  } = config;
+  const {getPublicInstance} = config;
 
   if (__DEV__) {
     var callComponentWillUnmountWithTimerInDev = function(current, instance) {
       startPhaseTimer(current, 'componentWillUnmount');
+      instance.props = current.memoizedProps;
+      instance.state = current.memoizedState;
       instance.componentWillUnmount();
       stopPhaseTimer();
     };
@@ -70,18 +57,21 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
   // Capture errors so they don't interrupt unmounting.
   function safelyCallComponentWillUnmount(current, instance) {
     if (__DEV__) {
-      const unmountError = invokeGuardedCallback(
+      invokeGuardedCallback(
         null,
         callComponentWillUnmountWithTimerInDev,
         null,
         current,
         instance,
       );
-      if (unmountError) {
+      if (hasCaughtError()) {
+        const unmountError = clearCaughtError();
         captureError(current, unmountError);
       }
     } else {
       try {
+        instance.props = current.memoizedProps;
+        instance.state = current.memoizedState;
         instance.componentWillUnmount();
       } catch (unmountError) {
         captureError(current, unmountError);
@@ -93,8 +83,9 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     const ref = current.ref;
     if (ref !== null) {
       if (__DEV__) {
-        const refError = invokeGuardedCallback(null, ref, null, null);
-        if (refError !== null) {
+        invokeGuardedCallback(null, ref, null, null);
+        if (hasCaughtError()) {
+          const refError = clearCaughtError();
           captureError(current, refError);
         }
       } else {
@@ -107,25 +98,208 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     }
   }
 
-  function getHostParent(fiber: Fiber): I | C {
-    let parent = fiber.return;
-    while (parent !== null) {
-      switch (parent.tag) {
-        case HostComponent:
-          return parent.stateNode;
-        case HostRoot:
-          return parent.stateNode.containerInfo;
-        case HostPortal:
-          return parent.stateNode.containerInfo;
+  function commitLifeCycles(current: Fiber | null, finishedWork: Fiber): void {
+    switch (finishedWork.tag) {
+      case ClassComponent: {
+        const instance = finishedWork.stateNode;
+        if (finishedWork.effectTag & Update) {
+          if (current === null) {
+            if (__DEV__) {
+              startPhaseTimer(finishedWork, 'componentDidMount');
+            }
+            instance.props = finishedWork.memoizedProps;
+            instance.state = finishedWork.memoizedState;
+            instance.componentDidMount();
+            if (__DEV__) {
+              stopPhaseTimer();
+            }
+          } else {
+            const prevProps = current.memoizedProps;
+            const prevState = current.memoizedState;
+            if (__DEV__) {
+              startPhaseTimer(finishedWork, 'componentDidUpdate');
+            }
+            instance.props = finishedWork.memoizedProps;
+            instance.state = finishedWork.memoizedState;
+            instance.componentDidUpdate(prevProps, prevState);
+            if (__DEV__) {
+              stopPhaseTimer();
+            }
+          }
+        }
+        const updateQueue = finishedWork.updateQueue;
+        if (updateQueue !== null) {
+          commitCallbacks(updateQueue, instance);
+        }
+        return;
       }
-      parent = parent.return;
+      case HostRoot: {
+        const updateQueue = finishedWork.updateQueue;
+        if (updateQueue !== null) {
+          const instance = finishedWork.child !== null
+            ? finishedWork.child.stateNode
+            : null;
+          commitCallbacks(updateQueue, instance);
+        }
+        return;
+      }
+      case HostComponent: {
+        const instance: I = finishedWork.stateNode;
+
+        // Renderers may schedule work to be done after host components are mounted
+        // (eg DOM renderer may schedule auto-focus for inputs and form controls).
+        // These effects should only be committed when components are first mounted,
+        // aka when there is no current/alternate.
+        if (current === null && finishedWork.effectTag & Update) {
+          const type = finishedWork.type;
+          const props = finishedWork.memoizedProps;
+          commitMount(instance, type, props, finishedWork);
+        }
+
+        return;
+      }
+      case HostText: {
+        // We have no life-cycles associated with text.
+        return;
+      }
+      default: {
+        invariant(
+          false,
+          'This unit of work tag should not have side-effects. This error is ' +
+            'likely caused by a bug in React. Please file an issue.',
+        );
+      }
     }
-    invariant(
-      false,
-      'Expected to find a host parent. This error is likely caused by a bug ' +
-        'in React. Please file an issue.',
-    );
   }
+
+  function commitAttachRef(finishedWork: Fiber) {
+    const ref = finishedWork.ref;
+    if (ref !== null) {
+      const instance = finishedWork.stateNode;
+      switch (finishedWork.tag) {
+        case HostComponent:
+          ref(getPublicInstance(instance));
+          break;
+        default:
+          ref(instance);
+      }
+    }
+  }
+
+  function commitDetachRef(current: Fiber) {
+    const currentRef = current.ref;
+    if (currentRef !== null) {
+      currentRef(null);
+    }
+  }
+
+  // User-originating errors (lifecycles and refs) should not interrupt
+  // deletion, so don't let them throw. Host-originating errors should
+  // interrupt deletion, so it's okay
+  function commitUnmount(current: Fiber): void {
+    if (typeof onCommitUnmount === 'function') {
+      onCommitUnmount(current);
+    }
+
+    switch (current.tag) {
+      case ClassComponent: {
+        safelyDetachRef(current);
+        const instance = current.stateNode;
+        if (typeof instance.componentWillUnmount === 'function') {
+          safelyCallComponentWillUnmount(current, instance);
+        }
+        return;
+      }
+      case HostComponent: {
+        safelyDetachRef(current);
+        return;
+      }
+      case CoroutineComponent: {
+        commitNestedUnmounts(current.stateNode);
+        return;
+      }
+      case HostPortal: {
+        // TODO: this is recursive.
+        // We are also not using this parent because
+        // the portal will get pushed immediately.
+        unmountHostComponents(current);
+        return;
+      }
+    }
+  }
+
+  function commitNestedUnmounts(root: Fiber): void {
+    // While we're inside a removed host node we don't want to call
+    // removeChild on the inner nodes because they're removed by the top
+    // call anyway. We also want to call componentWillUnmount on all
+    // composites before this host node is removed from the tree. Therefore
+    // we do an inner loop while we're still inside the host node.
+    let node: Fiber = root;
+    while (true) {
+      commitUnmount(node);
+      // Visit children because they may contain more composite or host nodes.
+      // Skip portals because commitUnmount() currently visits them recursively.
+      if (node.child !== null && node.tag !== HostPortal) {
+        node.child.return = node;
+        node = node.child;
+        continue;
+      }
+      if (node === root) {
+        return;
+      }
+      while (node.sibling === null) {
+        if (node.return === null || node.return === root) {
+          return;
+        }
+        node = node.return;
+      }
+      node.sibling.return = node.return;
+      node = node.sibling;
+    }
+  }
+
+  function detachFiber(current: Fiber) {
+    // Cut off the return pointers to disconnect it from the tree. Ideally, we
+    // should clear the child pointer of the parent alternate to let this
+    // get GC:ed but we don't know which for sure which parent is the current
+    // one so we'll settle for GC:ing the subtree of this child. This child
+    // itself will be GC:ed when the parent updates the next time.
+    current.return = null;
+    current.child = null;
+    if (current.alternate) {
+      current.alternate.child = null;
+      current.alternate.return = null;
+    }
+  }
+
+  if (!config.mutation) {
+    return {
+      commitResetTextContent(finishedWork: Fiber) {},
+      commitPlacement(finishedWork: Fiber) {},
+      commitDeletion(current: Fiber) {
+        // Detach refs and call componentWillUnmount() on the whole subtree.
+        commitNestedUnmounts(current);
+        detachFiber(current);
+      },
+      commitWork(current: Fiber | null, finishedWork: Fiber) {},
+      commitLifeCycles,
+      commitAttachRef,
+      commitDetachRef,
+    };
+  }
+
+  const {
+    commitMount,
+    commitUpdate,
+    resetTextContent,
+    commitTextUpdate,
+    appendChild,
+    appendChildToContainer,
+    insertBefore,
+    insertInContainerBefore,
+    removeChild,
+    removeChildFromContainer,
+  } = config.mutation;
 
   function getHostParentFiber(fiber: Fiber): Fiber {
     let parent = fiber.return;
@@ -143,9 +317,11 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
   }
 
   function isHostParent(fiber: Fiber): boolean {
-    return fiber.tag === HostComponent ||
+    return (
+      fiber.tag === HostComponent ||
       fiber.tag === HostRoot ||
-      fiber.tag === HostPortal;
+      fiber.tag === HostPortal
+    );
   }
 
   function getHostSibling(fiber: Fiber): ?I {
@@ -194,15 +370,19 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     // Recursively insert all host nodes into the parent.
     const parentFiber = getHostParentFiber(finishedWork);
     let parent;
+    let isContainer;
     switch (parentFiber.tag) {
       case HostComponent:
         parent = parentFiber.stateNode;
+        isContainer = false;
         break;
       case HostRoot:
         parent = parentFiber.stateNode.containerInfo;
+        isContainer = true;
         break;
       case HostPortal:
         parent = parentFiber.stateNode.containerInfo;
+        isContainer = true;
         break;
       default:
         invariant(
@@ -225,9 +405,17 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     while (true) {
       if (node.tag === HostComponent || node.tag === HostText) {
         if (before) {
-          insertBefore(parent, node.stateNode, before);
+          if (isContainer) {
+            insertInContainerBefore(parent, node.stateNode, before);
+          } else {
+            insertBefore(parent, node.stateNode, before);
+          }
         } else {
-          appendChild(parent, node.stateNode);
+          if (isContainer) {
+            appendChildToContainer(parent, node.stateNode);
+          } else {
+            appendChild(parent, node.stateNode);
+          }
         }
       } else if (node.tag === HostPortal) {
         // If the insertion itself is a portal, then we don't want to traverse
@@ -252,51 +440,59 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     }
   }
 
-  function commitNestedUnmounts(root: Fiber): void {
-    // While we're inside a removed host node we don't want to call
-    // removeChild on the inner nodes because they're removed by the top
-    // call anyway. We also want to call componentWillUnmount on all
-    // composites before this host node is removed from the tree. Therefore
-    // we do an inner loop while we're still inside the host node.
-    let node: Fiber = root;
-    while (true) {
-      commitUnmount(node);
-      // Visit children because they may contain more composite or host nodes.
-      // Skip portals because commitUnmount() currently visits them recursively.
-      if (node.child !== null && node.tag !== HostPortal) {
-        node.child.return = node;
-        node = node.child;
-        continue;
-      }
-      if (node === root) {
-        return;
-      }
-      while (node.sibling === null) {
-        if (node.return === null || node.return === root) {
-          return;
-        }
-        node = node.return;
-      }
-      node.sibling.return = node.return;
-      node = node.sibling;
-    }
-  }
-
-  function unmountHostComponents(parent, current): void {
+  function unmountHostComponents(current): void {
     // We only have the top Fiber that was inserted but we need recurse down its
     // children to find all the terminal nodes.
     let node: Fiber = current;
+
+    // Each iteration, currentParent is populated with node's host parent if not
+    // currentParentIsValid.
+    let currentParentIsValid = false;
+    let currentParent;
+    let currentParentIsContainer;
+
     while (true) {
+      if (!currentParentIsValid) {
+        let parent = node.return;
+        findParent: while (true) {
+          invariant(
+            parent !== null,
+            'Expected to find a host parent. This error is likely caused by ' +
+              'a bug in React. Please file an issue.',
+          );
+          switch (parent.tag) {
+            case HostComponent:
+              currentParent = parent.stateNode;
+              currentParentIsContainer = false;
+              break findParent;
+            case HostRoot:
+              currentParent = parent.stateNode.containerInfo;
+              currentParentIsContainer = true;
+              break findParent;
+            case HostPortal:
+              currentParent = parent.stateNode.containerInfo;
+              currentParentIsContainer = true;
+              break findParent;
+          }
+          parent = parent.return;
+        }
+        currentParentIsValid = true;
+      }
+
       if (node.tag === HostComponent || node.tag === HostText) {
         commitNestedUnmounts(node);
         // After all the children have unmounted, it is now safe to remove the
         // node from the tree.
-        removeChild(parent, node.stateNode);
+        if (currentParentIsContainer) {
+          removeChildFromContainer((currentParent: any), node.stateNode);
+        } else {
+          removeChild((currentParent: any), node.stateNode);
+        }
         // Don't visit children because we already visited them.
       } else if (node.tag === HostPortal) {
         // When we go into a portal, it becomes the parent to remove from.
         // We will reassign it back when we pop the portal on the way up.
-        parent = node.stateNode.containerInfo;
+        currentParent = node.stateNode.containerInfo;
         // Visit children because portals might contain host components.
         if (node.child !== null) {
           node.child.return = node;
@@ -323,7 +519,7 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
         if (node.tag === HostPortal) {
           // When we go out of the portal, we need to restore the parent.
           // Since we don't keep a stack of them, we will search for it.
-          parent = getHostParent(node);
+          currentParentIsValid = false;
         }
       }
       node.sibling.return = node.return;
@@ -333,57 +529,9 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
 
   function commitDeletion(current: Fiber): void {
     // Recursively delete all host nodes from the parent.
-    const parent = getHostParent(current);
     // Detach refs and call componentWillUnmount() on the whole subtree.
-    unmountHostComponents(parent, current);
-
-    // Cut off the return pointers to disconnect it from the tree. Ideally, we
-    // should clear the child pointer of the parent alternate to let this
-    // get GC:ed but we don't know which for sure which parent is the current
-    // one so we'll settle for GC:ing the subtree of this child. This child
-    // itself will be GC:ed when the parent updates the next time.
-    current.return = null;
-    current.child = null;
-    if (current.alternate) {
-      current.alternate.child = null;
-      current.alternate.return = null;
-    }
-  }
-
-  // User-originating errors (lifecycles and refs) should not interrupt
-  // deletion, so don't let them throw. Host-originating errors should
-  // interrupt deletion, so it's okay
-  function commitUnmount(current: Fiber): void {
-    if (typeof onCommitUnmount === 'function') {
-      onCommitUnmount(current);
-    }
-
-    switch (current.tag) {
-      case ClassComponent: {
-        safelyDetachRef(current);
-        const instance = current.stateNode;
-        if (typeof instance.componentWillUnmount === 'function') {
-          safelyCallComponentWillUnmount(current, instance);
-        }
-        return;
-      }
-      case HostComponent: {
-        safelyDetachRef(current);
-        return;
-      }
-      case CoroutineComponent: {
-        commitNestedUnmounts(current.stateNode);
-        return;
-      }
-      case HostPortal: {
-        // TODO: this is recursive.
-        // We are also not using this parent because
-        // the portal will get pushed immediately.
-        const parent = getHostParent(current);
-        unmountHostComponents(parent, current);
-        return;
-      }
-    }
+    unmountHostComponents(current);
+    detachFiber(current);
   }
 
   function commitWork(current: Fiber | null, finishedWork: Fiber): void {
@@ -393,10 +541,13 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
       }
       case HostComponent: {
         const instance: I = finishedWork.stateNode;
-        if (instance != null && current !== null) {
+        if (instance != null) {
           // Commit the work prepared earlier.
           const newProps = finishedWork.memoizedProps;
-          const oldProps = current.memoizedProps;
+          // For hydration we reuse the update path but we treat the oldProps
+          // as the newProps. The updatePayload will contain the real change in
+          // this case.
+          const oldProps = current !== null ? current.memoizedProps : newProps;
           const type = finishedWork.type;
           // TODO: Type the updateQueue to be specific to host components.
           const updatePayload: null | PL = (finishedWork.updateQueue: any);
@@ -416,22 +567,24 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
       }
       case HostText: {
         invariant(
-          finishedWork.stateNode !== null && current !== null,
-          'This should only be done during updates. This error is likely ' +
+          finishedWork.stateNode !== null,
+          'This should have a text node initialized. This error is likely ' +
             'caused by a bug in React. Please file an issue.',
         );
         const textInstance: TI = finishedWork.stateNode;
         const newText: string = finishedWork.memoizedProps;
-        const oldText: string = current.memoizedProps;
+        // For hydration we reuse the update path but we treat the oldProps
+        // as the newProps. The updatePayload will contain the real change in
+        // this case.
+        const oldText: string = current !== null
+          ? current.memoizedProps
+          : newText;
         commitTextUpdate(textInstance, oldText, newText);
         return;
       }
       case HostRoot: {
         return;
       }
-      case HostPortal: {
-        return;
-      }
       default: {
         invariant(
           false,
@@ -442,95 +595,12 @@ module.exports = function<T, P, I, TI, PI, C, CX, PL>(
     }
   }
 
-  function commitLifeCycles(current: Fiber | null, finishedWork: Fiber): void {
-    switch (finishedWork.tag) {
-      case ClassComponent: {
-        const instance = finishedWork.stateNode;
-        if (finishedWork.effectTag & Update) {
-          if (current === null) {
-            if (__DEV__) {
-              startPhaseTimer(finishedWork, 'componentDidMount');
-            }
-            instance.componentDidMount();
-            if (__DEV__) {
-              stopPhaseTimer();
-            }
-          } else {
-            const prevProps = current.memoizedProps;
-            const prevState = current.memoizedState;
-            if (__DEV__) {
-              startPhaseTimer(finishedWork, 'componentDidUpdate');
-            }
-            instance.componentDidUpdate(prevProps, prevState);
-            if (__DEV__) {
-              stopPhaseTimer();
-            }
-          }
-        }
-        if (
-          finishedWork.effectTag & Callback && finishedWork.updateQueue !== null
-        ) {
-          commitCallbacks(finishedWork, finishedWork.updateQueue, instance);
-        }
-        return;
-      }
-      case HostRoot: {
-        const updateQueue = finishedWork.updateQueue;
-        if (updateQueue !== null) {
-          const instance = finishedWork.child && finishedWork.child.stateNode;
-          commitCallbacks(finishedWork, updateQueue, instance);
-        }
-        return;
-      }
-      case HostComponent: {
-        const instance: I = finishedWork.stateNode;
-
-        // Renderers may schedule work to be done after host components are mounted
-        // (eg DOM renderer may schedule auto-focus for inputs and form controls).
-        // These effects should only be committed when components are first mounted,
-        // aka when there is no current/alternate.
-        if (current === null && finishedWork.effectTag & Update) {
-          const type = finishedWork.type;
-          const props = finishedWork.memoizedProps;
-          commitMount(instance, type, props, finishedWork);
-        }
-
-        return;
-      }
-      case HostText: {
-        // We have no life-cycles associated with text.
-        return;
-      }
-      case HostPortal: {
-        // We have no life-cycles associated with portals.
-        return;
-      }
-      default: {
-        invariant(
-          false,
-          'This unit of work tag should not have side-effects. This error is ' +
-            'likely caused by a bug in React. Please file an issue.',
-        );
-      }
-    }
-  }
-
-  function commitAttachRef(finishedWork: Fiber) {
-    const ref = finishedWork.ref;
-    if (ref !== null) {
-      const instance = getPublicInstance(finishedWork.stateNode);
-      ref(instance);
-    }
-  }
-
-  function commitDetachRef(current: Fiber) {
-    const currentRef = current.ref;
-    if (currentRef !== null) {
-      currentRef(null);
-    }
+  function commitResetTextContent(current: Fiber) {
+    resetTextContent(current.stateNode);
   }
 
   return {
+    commitResetTextContent,
     commitPlacement,
     commitDeletion,
     commitWork,

@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule EventPluginUtils
  */
@@ -14,7 +12,10 @@
 var ReactErrorUtils = require('ReactErrorUtils');
 
 var invariant = require('fbjs/lib/invariant');
-var warning = require('fbjs/lib/warning');
+
+if (__DEV__) {
+  var warning = require('fbjs/lib/warning');
+}
 
 /**
  * Injected dependencies:
@@ -41,9 +42,11 @@ var injection = {
 };
 
 function isEndish(topLevelType) {
-  return topLevelType === 'topMouseUp' ||
+  return (
+    topLevelType === 'topMouseUp' ||
     topLevelType === 'topTouchEnd' ||
-    topLevelType === 'topTouchCancel';
+    topLevelType === 'topTouchCancel'
+  );
 }
 
 function isMoveish(topLevelType) {

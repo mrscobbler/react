@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -17,7 +15,8 @@ var ReactFiberReconciler;
 describe('ReactFiberHostContext', () => {
   beforeEach(() => {
     jest.resetModules();
-    React = require('React');
+    React = require('react');
+    // TODO: can we express this test with only public API?
     ReactFiberReconciler = require('ReactFiberReconciler');
   });
 
@@ -44,10 +43,15 @@ describe('ReactFiberHostContext', () => {
       appendInitialChild: function() {
         return null;
       },
-      appendChild: function() {
-        return null;
+      now: function() {
+        return 0;
       },
       useSyncScheduling: true,
+      mutation: {
+        appendChildToContainer: function() {
+          return null;
+        },
+      },
     });
 
     const container = Renderer.createContainer(/* root: */ null);

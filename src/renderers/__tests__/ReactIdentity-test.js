@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -20,13 +18,13 @@ describe('ReactIdentity', () => {
     jest.resetModules();
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactTestUtils = require('ReactTestUtils');
+    ReactTestUtils = require('react-dom/test-utils');
   });
 
   it('should allow key property to express identity', () => {
     var node;
     var Component = props => (
-      <div ref={c => node = c}>
+      <div ref={c => (node = c)}>
         <div key={props.swap ? 'banana' : 'apple'} />
         <div key={props.swap ? 'apple' : 'banana'} />
       </div>
@@ -52,11 +50,11 @@ describe('ReactIdentity', () => {
     var node1;
     var node2;
     ReactDOM.render(
-      <Wrapper key="wrap1"><span ref={c => node1 = c} /></Wrapper>,
+      <Wrapper key="wrap1"><span ref={c => (node1 = c)} /></Wrapper>,
       container,
     );
     ReactDOM.render(
-      <Wrapper key="wrap2"><span ref={c => node2 = c} /></Wrapper>,
+      <Wrapper key="wrap2"><span ref={c => (node2 = c)} /></Wrapper>,
       container,
     );
 
@@ -92,7 +90,8 @@ describe('ReactIdentity', () => {
   });
 
   it('should not allow scripts in keys to execute', () => {
-    var h4x0rKey = '"><script>window[\'YOUVEBEENH4X0RED\']=true;</script><div id="';
+    var h4x0rKey =
+      '"><script>window[\'YOUVEBEENH4X0RED\']=true;</script><div id="';
 
     var attachedContainer = document.createElement('div');
     document.body.appendChild(attachedContainer);

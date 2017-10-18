@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule EventPropagators
  */
@@ -16,20 +14,22 @@ var ReactTreeTraversal = require('ReactTreeTraversal');
 
 var accumulateInto = require('accumulateInto');
 var forEachAccumulated = require('forEachAccumulated');
-var warning = require('fbjs/lib/warning');
 
-import type {PropagationPhases} from 'EventConstants';
+type PropagationPhases = 'bubbled' | 'captured';
 
 var getListener = EventPluginHub.getListener;
+
+if (__DEV__) {
+  var warning = require('fbjs/lib/warning');
+}
 
 /**
  * Some event types have a notion of different registration names for different
  * "phases" of propagation. This finds listeners by a given phase.
  */
 function listenerAtPhase(inst, event, propagationPhase: PropagationPhases) {
-  var registrationName = event.dispatchConfig.phasedRegistrationNames[
-    propagationPhase
-  ];
+  var registrationName =
+    event.dispatchConfig.phasedRegistrationNames[propagationPhase];
   return getListener(inst, registrationName);
 }
 

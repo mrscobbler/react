@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -13,15 +11,19 @@
 
 var React;
 var ReactDOM;
-var ReactDOMFeatureFlags;
+var ReactDOMServer;
 var ReactTestUtils;
 
 describe('ReactComponent', () => {
+  function normalizeCodeLocInfo(str) {
+    return str && str.replace(/\(at .+?:\d+\)/g, '(at **)');
+  }
+
   beforeEach(() => {
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactDOMFeatureFlags = require('ReactDOMFeatureFlags');
-    ReactTestUtils = require('ReactTestUtils');
+    ReactDOMServer = require('react-dom/server');
+    ReactTestUtils = require('react-dom/test-utils');
   });
 
   it('should throw on invalid render targets', () => {
@@ -153,9 +155,11 @@ describe('ReactComponent', () => {
 
     class Component extends React.Component {
       render() {
-        var inner = <Wrapper object={innerObj} ref={c => this.innerRef = c} />;
+        var inner = (
+          <Wrapper object={innerObj} ref={c => (this.innerRef = c)} />
+        );
         var outer = (
-          <Wrapper object={outerObj} ref={c => this.outerRef = c}>
+          <Wrapper object={outerObj} ref={c => (this.outerRef = c)}>
             {inner}
           </Wrapper>
         );
@@ -190,14 +194,14 @@ describe('ReactComponent', () => {
       getInner = () => {
         // (With old-style refs, it's impossible to get a ref to this div
         // because Wrapper is the current owner when this function is called.)
-        return <div className="inner" ref={c => this.innerRef = c} />;
+        return <div className="inner" ref={c => (this.innerRef = c)} />;
       };
 
       render() {
         return (
           <Wrapper
             title="wrapper"
-            ref={c => this.wrapperRef = c}
+            ref={c => (this.wrapperRef = c)}
             getContent={this.getInner}
           />
         );
@@ -291,21 +295,11 @@ describe('ReactComponent', () => {
       'outer componentDidMount',
       'start update',
       // Previous (equivalent) refs get cleared
-      ...(ReactDOMFeatureFlags.useFiber
-        ? [
-            // Fiber renders first, resets refs later
-            'inner 1 render',
-            'inner 2 render',
-            'ref 1 got null',
-            'ref 2 got null',
-          ]
-        : [
-            // Stack resets refs before rendering
-            'ref 1 got null',
-            'inner 1 render',
-            'ref 2 got null',
-            'inner 2 render',
-          ]),
+      // Fiber renders first, resets refs later
+      'inner 1 render',
+      'inner 2 render',
+      'ref 1 got null',
+      'ref 2 got null',
       'inner 1 componentDidUpdate',
       'ref 1 got instance 1',
       'inner 2 componentDidUpdate',
@@ -389,10 +383,18 @@ describe('ReactComponent', () => {
     };
     var element = <div>{[children]}</div>;
     var container = document.createElement('div');
-    expect(() => ReactDOM.render(element, container)).toThrowError(
+    var ex;
+    try {
+      ReactDOM.render(element, container);
+    } catch (e) {
+      ex = e;
+    }
+    expect(ex).toBeDefined();
+    expect(normalizeCodeLocInfo(ex.message)).toBe(
       'Objects are not valid as a React child (found: object with keys ' +
-        '{x, y, z}). If you meant to render a collection of children, use an ' +
-        'array instead.',
+        '{x, y, z}). If you meant to render a collection of children, use ' +
+        'an array instead.' +
+        '\n    in div (at **)',
     );
   });
 
@@ -408,10 +410,174 @@ describe('ReactComponent', () => {
       }
     }
     var container = document.createElement('div');
-    expect(() => ReactDOM.render(<Foo />, container)).toThrowError(
+    var ex;
+    try {
+      ReactDOM.render(<Foo />, container);
+    } catch (e) {
+      ex = e;
+    }
+    expect(ex).toBeDefined();
+    expect(normalizeCodeLocInfo(ex.message)).toBe(
       'Objects are not valid as a React child (found: object with keys ' +
-        '{a, b, c}). If you meant to render a collection of children, use an ' +
-        'array instead.\n\nCheck the render method of `Foo`.',
+        '{a, b, c}). If you meant to render a collection of children, use ' +
+        'an array instead.\n' +
+        '    in div (at **)\n' +
+        '    in Foo (at **)',
     );
+  });
+
+  it('throws if a plain object is used as a child when using SSR', async () => {
+    var children = {
+      x: <span />,
+      y: <span />,
+      z: <span />,
+    };
+    var element = <div>{[children]}</div>;
+    var ex;
+    try {
+      ReactDOMServer.renderToString(element);
+    } catch (e) {
+      ex = e;
+    }
+    expect(ex).toBeDefined();
+    expect(normalizeCodeLocInfo(ex.message)).toBe(
+      'Objects are not valid as a React child (found: object with keys ' +
+        '{x, y, z}). If you meant to render a collection of children, use ' +
+        'an array instead.' +
+        '\n    in div (at **)',
+    );
+  });
+
+  it('throws if a plain object even if it is in an owner when using SSR', async () => {
+    class Foo extends React.Component {
+      render() {
+        var children = {
+          a: <span />,
+          b: <span />,
+          c: <span />,
+        };
+        return <div>{[children]}</div>;
+      }
+    }
+    var container = document.createElement('div');
+    var ex;
+    try {
+      ReactDOMServer.renderToString(<Foo />, container);
+    } catch (e) {
+      ex = e;
+    }
+    expect(ex).toBeDefined();
+    expect(normalizeCodeLocInfo(ex.message)).toBe(
+      'Objects are not valid as a React child (found: object with keys ' +
+        '{a, b, c}). If you meant to render a collection of children, use ' +
+        'an array instead.\n' +
+        '    in div (at **)\n' +
+        '    in Foo (at **)',
+    );
+  });
+
+  describe('with new features', () => {
+    it('warns on function as a return value from a function', () => {
+      function Foo() {
+        return Foo;
+      }
+      spyOn(console, 'error');
+      var container = document.createElement('div');
+      ReactDOM.render(<Foo />, container);
+      expectDev(console.error.calls.count()).toBe(1);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: Functions are not valid as a React child. This may happen if ' +
+          'you return a Component instead of <Component /> from render. ' +
+          'Or maybe you meant to call this function rather than return it.\n' +
+          '    in Foo (at **)',
+      );
+    });
+
+    it('warns on function as a return value from a class', () => {
+      class Foo extends React.Component {
+        render() {
+          return Foo;
+        }
+      }
+      spyOn(console, 'error');
+      var container = document.createElement('div');
+      ReactDOM.render(<Foo />, container);
+      expectDev(console.error.calls.count()).toBe(1);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: Functions are not valid as a React child. This may happen if ' +
+          'you return a Component instead of <Component /> from render. ' +
+          'Or maybe you meant to call this function rather than return it.\n' +
+          '    in Foo (at **)',
+      );
+    });
+
+    it('warns on function as a child to host component', () => {
+      function Foo() {
+        return <div><span>{Foo}</span></div>;
+      }
+      spyOn(console, 'error');
+      var container = document.createElement('div');
+      ReactDOM.render(<Foo />, container);
+      expectDev(console.error.calls.count()).toBe(1);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: Functions are not valid as a React child. This may happen if ' +
+          'you return a Component instead of <Component /> from render. ' +
+          'Or maybe you meant to call this function rather than return it.\n' +
+          '    in span (at **)\n' +
+          '    in div (at **)\n' +
+          '    in Foo (at **)',
+      );
+    });
+
+    it('does not warn for function-as-a-child that gets resolved', () => {
+      function Bar(props) {
+        return props.children();
+      }
+      function Foo() {
+        return <Bar>{() => 'Hello'}</Bar>;
+      }
+      spyOn(console, 'error');
+      var container = document.createElement('div');
+      ReactDOM.render(<Foo />, container);
+      expect(container.innerHTML).toBe('Hello');
+      expectDev(console.error.calls.count()).toBe(0);
+    });
+
+    it('deduplicates function type warnings based on component type', () => {
+      spyOn(console, 'error');
+      class Foo extends React.PureComponent {
+        constructor() {
+          super();
+          this.state = {type: 'mushrooms'};
+        }
+        render() {
+          return (
+            <div>
+              {Foo}{Foo}
+              <span>{Foo}{Foo}</span>
+            </div>
+          );
+        }
+      }
+      var container = document.createElement('div');
+      var component = ReactDOM.render(<Foo />, container);
+      component.setState({type: 'portobello mushrooms'});
+      expectDev(console.error.calls.count()).toBe(2);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: Functions are not valid as a React child. This may happen if ' +
+          'you return a Component instead of <Component /> from render. ' +
+          'Or maybe you meant to call this function rather than return it.\n' +
+          '    in div (at **)\n' +
+          '    in Foo (at **)',
+      );
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(1)[0])).toBe(
+        'Warning: Functions are not valid as a React child. This may happen if ' +
+          'you return a Component instead of <Component /> from render. ' +
+          'Or maybe you meant to call this function rather than return it.\n' +
+          '    in span (at **)\n' +
+          '    in div (at **)\n' +
+          '    in Foo (at **)',
+      );
+    });
   });
 });

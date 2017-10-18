@@ -1,19 +1,18 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
 
 'use strict';
 
+var {HostComponent} = require('ReactTypeOfWork');
+
 var EventPluginHub;
 var ResponderEventPlugin;
-var EventPluginUtils;
 
 var touch = function(nodeHandle, i) {
   return {target: nodeHandle, identifier: i};
@@ -256,15 +255,13 @@ var registerTestHandlers = function(eventTestConfig, readableIDToID) {
     var hasTwoPhase = !!oneEventTypeTestConfig.bubbled;
     if (hasTwoPhase) {
       registerOneEventType(
-        ResponderEventPlugin.eventTypes[
-          eventName
-        ].phasedRegistrationNames.bubbled,
+        ResponderEventPlugin.eventTypes[eventName].phasedRegistrationNames
+          .bubbled,
         oneEventTypeTestConfig.bubbled,
       );
       registerOneEventType(
-        ResponderEventPlugin.eventTypes[
-          eventName
-        ].phasedRegistrationNames.captured,
+        ResponderEventPlugin.eventTypes[eventName].phasedRegistrationNames
+          .captured,
         oneEventTypeTestConfig.captured,
       );
     } else {
@@ -323,35 +320,37 @@ var PARENT_HOST_NODE = {};
 var CHILD_HOST_NODE = {};
 var CHILD_HOST_NODE2 = {};
 
+// These intentionally look like Fibers. ReactTreeTraversal depends on their field names.
+// TODO: we could test this with regular DOM nodes (and real fibers) instead.
 var GRANDPARENT_INST = {
-  _hostParent: null,
-  _rootNodeID: '1',
-  _hostNode: GRANDPARENT_HOST_NODE,
-  _currentElement: {props: {}},
+  return: null,
+  tag: HostComponent,
+  stateNode: GRANDPARENT_HOST_NODE,
+  memoizedProps: {},
 };
 var PARENT_INST = {
-  _hostParent: GRANDPARENT_INST,
-  _rootNodeID: '2',
-  _hostNode: PARENT_HOST_NODE,
-  _currentElement: {props: {}},
+  return: GRANDPARENT_INST,
+  tag: HostComponent,
+  stateNode: PARENT_HOST_NODE,
+  memoizedProps: {},
 };
 var CHILD_INST = {
-  _hostParent: PARENT_INST,
-  _rootNodeID: '3',
-  _hostNode: CHILD_HOST_NODE,
-  _currentElement: {props: {}},
+  return: PARENT_INST,
+  tag: HostComponent,
+  stateNode: CHILD_HOST_NODE,
+  memoizedProps: {},
 };
 var CHILD_INST2 = {
-  _hostParent: PARENT_INST,
-  _rootNodeID: '4',
-  _hostNode: CHILD_HOST_NODE2,
-  _currentElement: {props: {}},
+  return: PARENT_INST,
+  tag: HostComponent,
+  stateNode: CHILD_HOST_NODE2,
+  memoizedProps: {},
 };
 
-GRANDPARENT_HOST_NODE._reactInstance = GRANDPARENT_INST;
-PARENT_HOST_NODE._reactInstance = PARENT_INST;
-CHILD_HOST_NODE._reactInstance = CHILD_INST;
-CHILD_HOST_NODE2._reactInstance = CHILD_INST2;
+GRANDPARENT_HOST_NODE.testInstance = GRANDPARENT_INST;
+PARENT_HOST_NODE.testInstance = PARENT_INST;
+CHILD_HOST_NODE.testInstance = CHILD_INST;
+CHILD_HOST_NODE2.testInstance = CHILD_INST2;
 
 var three = {
   grandParent: GRANDPARENT_HOST_NODE,
@@ -366,37 +365,48 @@ var siblings = {
 };
 
 function getInstanceFromNode(node) {
-  return node._reactInstance;
+  return node.testInstance;
 }
 
 function getNodeFromInstance(inst) {
-  return inst._hostNode;
+  return inst.stateNode;
 }
 
-function putListener(node, registrationName, handler) {
-  node._currentElement.props[registrationName] = handler;
+function getFiberCurrentPropsFromNode(node) {
+  return node.testInstance.memoizedProps;
 }
 
-function deleteAllListeners(node) {
-  node._currentElement.props = {};
+function putListener(instance, registrationName, handler) {
+  instance.memoizedProps[registrationName] = handler;
+}
+
+function deleteAllListeners(instance) {
+  instance.memoizedProps = {};
 }
 
 describe('ResponderEventPlugin', () => {
   beforeEach(() => {
     jest.resetModules();
 
-    EventPluginHub = require('EventPluginHub');
-    EventPluginUtils = require('EventPluginUtils');
-    ResponderEventPlugin = require('ResponderEventPlugin');
+    const ReactDOM = require('react-dom');
+    const ReactDOMUnstableNativeDependencies = require('react-dom/unstable-native-dependencies');
+    EventPluginHub =
+      ReactDOM.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
+        .EventPluginHub;
+    const injectComponentTree =
+      ReactDOMUnstableNativeDependencies.injectComponentTree;
+    ResponderEventPlugin =
+      ReactDOMUnstableNativeDependencies.ResponderEventPlugin;
 
     deleteAllListeners(GRANDPARENT_INST);
     deleteAllListeners(PARENT_INST);
     deleteAllListeners(CHILD_INST);
     deleteAllListeners(CHILD_INST2);
 
-    EventPluginUtils.injection.injectComponentTree({
+    injectComponentTree({
       getInstanceFromNode,
       getNodeFromInstance,
+      getFiberCurrentPropsFromNode,
     });
   });
 

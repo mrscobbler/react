@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -12,9 +10,11 @@
 'use strict';
 
 var React = require('react');
+var PropTypes = require('prop-types');
 var ReactDOM = require('react-dom');
-var ReactTestUtils = require('ReactTestUtils');
-var renderSubtreeIntoContainer = require('renderSubtreeIntoContainer');
+var ReactTestUtils = require('react-dom/test-utils');
+var renderSubtreeIntoContainer = require('react-dom')
+  .unstable_renderSubtreeIntoContainer;
 
 describe('renderSubtreeIntoContainer', () => {
   it('should pass context when rendering subtree elsewhere', () => {
@@ -22,7 +22,7 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Component extends React.Component {
       static contextTypes = {
-        foo: React.PropTypes.string.isRequired,
+        foo: PropTypes.string.isRequired,
       };
 
       render() {
@@ -32,7 +32,7 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Parent extends React.Component {
       static childContextTypes = {
-        foo: React.PropTypes.string.isRequired,
+        foo: PropTypes.string.isRequired,
       };
 
       getChildContext() {
@@ -63,7 +63,7 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Component extends React.Component {
       static contextTypes = {
-        foo: React.PropTypes.string.isRequired,
+        foo: PropTypes.string.isRequired,
       };
 
       render() {
@@ -76,7 +76,7 @@ describe('renderSubtreeIntoContainer', () => {
     // eslint-disable-next-line no-unused-vars
     class Parent extends React.Component {
       static childContextTypes = {
-        foo: React.PropTypes.string.isRequired,
+        foo: PropTypes.string.isRequired,
       };
 
       getChildContext() {
@@ -104,8 +104,8 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Component extends React.Component {
       static contextTypes = {
-        foo: React.PropTypes.string.isRequired,
-        getFoo: React.PropTypes.func.isRequired,
+        foo: PropTypes.string.isRequired,
+        getFoo: PropTypes.func.isRequired,
       };
 
       render() {
@@ -115,8 +115,8 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Parent extends React.Component {
       static childContextTypes = {
-        foo: React.PropTypes.string.isRequired,
-        getFoo: React.PropTypes.func.isRequired,
+        foo: PropTypes.string.isRequired,
+        getFoo: PropTypes.func.isRequired,
       };
 
       state = {
@@ -156,8 +156,8 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Component extends React.Component {
       static contextTypes = {
-        foo: React.PropTypes.string.isRequired,
-        getFoo: React.PropTypes.func.isRequired,
+        foo: PropTypes.string.isRequired,
+        getFoo: PropTypes.func.isRequired,
       };
 
       render() {
@@ -167,8 +167,8 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Parent extends React.Component {
       static childContextTypes = {
-        foo: React.PropTypes.string.isRequired,
-        getFoo: React.PropTypes.func.isRequired,
+        foo: PropTypes.string.isRequired,
+        getFoo: PropTypes.func.isRequired,
       };
 
       getChildContext() {
@@ -229,7 +229,7 @@ describe('renderSubtreeIntoContainer', () => {
         return {value: this.props.value};
       }
       static childContextTypes = {
-        value: React.PropTypes.string.isRequired,
+        value: PropTypes.string.isRequired,
       };
     }
 
@@ -244,7 +244,7 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Child extends React.Component {
       static contextTypes = {
-        value: React.PropTypes.string.isRequired,
+        value: PropTypes.string.isRequired,
       };
       render() {
         return <div>{this.context.value}</div>;
@@ -272,7 +272,7 @@ describe('renderSubtreeIntoContainer', () => {
         renderSubtreeIntoContainer(this, <Middle />, portal1);
       }
       static childContextTypes = {
-        value: React.PropTypes.string.isRequired,
+        value: PropTypes.string.isRequired,
       };
     }
 
@@ -287,7 +287,7 @@ describe('renderSubtreeIntoContainer', () => {
 
     class Child extends React.Component {
       static contextTypes = {
-        value: React.PropTypes.string.isRequired,
+        value: PropTypes.string.isRequired,
       };
       render() {
         return <div>{this.context.value}</div>;
@@ -296,5 +296,26 @@ describe('renderSubtreeIntoContainer', () => {
 
     ReactDOM.render(<Parent value="foo" />, container);
     expect(portal2.textContent).toBe('foo');
+  });
+
+  it('fails gracefully when mixing React 15 and 16', () => {
+    class C extends React.Component {
+      render() {
+        return <div />;
+      }
+    }
+    const c = ReactDOM.render(<C />, document.createElement('div'));
+    // React 15 calls this:
+    // https://github.com/facebook/react/blob/77b71fc3c4/src/renderers/dom/client/ReactMount.js#L478-L479
+    expect(() => {
+      c._reactInternalInstance._processChildContext({});
+    }).toThrow(
+      '_processChildContext is not available in React 16+. This likely ' +
+        'means you have multiple copies of React and are attempting to nest ' +
+        'a React 15 tree inside a React 16 tree using ' +
+        "unstable_renderSubtreeIntoContainer, which isn't supported. Try to " +
+        'make sure you have only one copy of React (and ideally, switch to ' +
+        'ReactDOM.createPortal).',
+    );
   });
 });

@@ -1,20 +1,17 @@
 /**
  * Copyright (c) 2015-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule takeSnapshot
  * @flow
  */
 'use strict';
 
-var ReactNative = require('ReactNative');
-var UIManager = require('UIManager');
+const UIManager = require('UIManager');
 
-import type {Element} from 'React';
+const findNumericNodeHandle = require('findNumericNodeHandle');
 
 /**
  * Capture an image of the screen, window or an individual view. The image
@@ -34,7 +31,7 @@ import type {Element} from 'React';
  * @platform ios
  */
 function takeSnapshot(
-  view?: 'window' | Element<any> | number,
+  view?: 'window' | React$Element<any> | number,
   options?: {
     width?: number,
     height?: number,
@@ -43,7 +40,7 @@ function takeSnapshot(
   },
 ): Promise<any> {
   if (typeof view !== 'number' && view !== 'window') {
-    view = ReactNative.findNodeHandle(view) || 'window';
+    view = findNumericNodeHandle(view) || 'window';
   }
 
   // Call the hidden '__takeSnapshot' method; the main one throws an error to

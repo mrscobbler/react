@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -17,6 +15,7 @@
 var React;
 var ReactDOM;
 var ReactTestUtils;
+var PropTypes;
 
 describe('ReactJSXElementValidator', () => {
   function normalizeCodeLocInfo(str) {
@@ -29,9 +28,10 @@ describe('ReactJSXElementValidator', () => {
   beforeEach(() => {
     jest.resetModules();
 
+    PropTypes = require('prop-types');
     React = require('react');
     ReactDOM = require('react-dom');
-    ReactTestUtils = require('ReactTestUtils');
+    ReactTestUtils = require('react-dom/test-utils');
 
     Component = class extends React.Component {
       render() {
@@ -45,7 +45,7 @@ describe('ReactJSXElementValidator', () => {
       }
     };
     RequiredPropComponent.displayName = 'RequiredPropComponent';
-    RequiredPropComponent.propTypes = {prop: React.PropTypes.string.isRequired};
+    RequiredPropComponent.propTypes = {prop: PropTypes.string.isRequired};
   });
 
   it('warns for keys for arrays of elements in children position', () => {
@@ -188,7 +188,7 @@ describe('ReactJSXElementValidator', () => {
       }
     }
     MyComp.propTypes = {
-      color: React.PropTypes.string,
+      color: PropTypes.string,
     };
     class ParentComp extends React.Component {
       render() {
@@ -211,7 +211,7 @@ describe('ReactJSXElementValidator', () => {
       return null;
     }
     MyComp.propTypes = {
-      color: React.PropTypes.string,
+      color: PropTypes.string,
     };
     function MiddleComp(props) {
       return <MyComp color={props.color} />;
@@ -356,7 +356,7 @@ describe('ReactJSXElementValidator', () => {
     expectDev(console.error.calls.count()).toBe(1);
     expectDev(console.error.calls.argsFor(0)[0]).toContain(
       'NullPropTypeComponent: prop type `prop` is invalid; it must be a ' +
-        'function, usually from React.PropTypes.',
+        'function, usually from the `prop-types` package,',
     );
   });
 
@@ -374,7 +374,7 @@ describe('ReactJSXElementValidator', () => {
     expectDev(console.error.calls.count()).toBe(1);
     expectDev(console.error.calls.argsFor(0)[0]).toContain(
       'NullContextTypeComponent: context type `prop` is invalid; it must ' +
-        'be a function, usually from React.PropTypes.',
+        'be a function, usually from the `prop-types` package,',
     );
   });
 

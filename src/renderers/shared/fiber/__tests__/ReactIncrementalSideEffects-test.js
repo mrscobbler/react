@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -13,15 +11,12 @@
 
 var React;
 var ReactNoop;
-var ReactFeatureFlags;
 
 describe('ReactIncrementalSideEffects', () => {
   beforeEach(() => {
     jest.resetModules();
     React = require('react');
-    ReactNoop = require('ReactNoop');
-    ReactFeatureFlags = require('ReactFeatureFlags');
-    ReactFeatureFlags.disableNewFiberFeatures = false;
+    ReactNoop = require('react-noop-renderer');
   });
 
   function normalizeCodeLocInfo(str) {
@@ -29,7 +24,7 @@ describe('ReactIncrementalSideEffects', () => {
   }
 
   function div(...children) {
-    children = children.map(c => typeof c === 'string' ? {text: c} : c);
+    children = children.map(c => (typeof c === 'string' ? {text: c} : c));
     return {type: 'div', children, prop: undefined};
   }
 
@@ -470,7 +465,7 @@ describe('ReactIncrementalSideEffects', () => {
     expect(ReactNoop.getChildren()).toEqual([div(span(1))]);
   });
 
-  it('can defer side-effects and resume them later on', function() {
+  xit('can defer side-effects and resume them later on', () => {
     class Bar extends React.Component {
       shouldComponentUpdate(nextProps) {
         return this.props.idx !== nextProps.idx;
@@ -547,7 +542,7 @@ describe('ReactIncrementalSideEffects', () => {
     expect(innerSpanA).toBe(innerSpanB);
   });
 
-  it('can defer side-effects and reuse them later - complex', function() {
+  xit('can defer side-effects and reuse them later - complex', function() {
     var ops = [];
 
     class Bar extends React.Component {
@@ -565,7 +560,10 @@ describe('ReactIncrementalSideEffects', () => {
       }
       render() {
         ops.push('Baz');
-        return [<Bar idx={this.props.idx} />, <Bar idx={this.props.idx} />];
+        return [
+          <Bar key="a" idx={this.props.idx} />,
+          <Bar key="b" idx={this.props.idx} />,
+        ];
       }
     }
     function Foo(props) {
@@ -786,7 +784,7 @@ describe('ReactIncrementalSideEffects', () => {
       ),
     ]);
 
-    expect(ops).toEqual(['Bar']);
+    expect(ops).toEqual(['Bar', 'Bar']);
   });
   // TODO: Test that side-effects are not cut off when a work in progress node
   // moves to "current" without flushing due to having lower priority. Does this

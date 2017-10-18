@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -13,7 +11,6 @@
 
 var React;
 var ReactDOM;
-var ReactDOMFeatureFlags;
 
 var TestComponent;
 
@@ -22,36 +19,35 @@ describe('ReactCompositeComponent-state', () => {
     React = require('react');
 
     ReactDOM = require('react-dom');
-    ReactDOMFeatureFlags = require('ReactDOMFeatureFlags');
 
-    TestComponent = React.createClass({
-      peekAtState: function(from, state) {
-        state = state || this.state;
-        this.props.stateListener(from, state && state.color);
-      },
+    TestComponent = class extends React.Component {
+      constructor(props) {
+        super(props);
+        this.peekAtState('getInitialState', undefined, props);
+        this.state = {color: 'red'};
+      }
 
-      peekAtCallback: function(from) {
+      peekAtState = (from, state = this.state, props = this.props) => {
+        props.stateListener(from, state && state.color);
+      };
+
+      peekAtCallback = from => {
         return () => this.peekAtState(from);
-      },
+      };
 
-      setFavoriteColor: function(nextColor) {
+      setFavoriteColor(nextColor) {
         this.setState(
           {color: nextColor},
           this.peekAtCallback('setFavoriteColor'),
         );
-      },
+      }
 
-      getInitialState: function() {
-        this.peekAtState('getInitialState');
-        return {color: 'red'};
-      },
-
-      render: function() {
+      render() {
         this.peekAtState('render');
         return <div>{this.state.color}</div>;
-      },
+      }
 
-      componentWillMount: function() {
+      componentWillMount() {
         this.peekAtState('componentWillMount-start');
         this.setState(function(state) {
           this.peekAtState('before-setState-sunrise', state);
@@ -72,59 +68,58 @@ describe('ReactCompositeComponent-state', () => {
           this.peekAtState('after-setState-orange', state);
         });
         this.peekAtState('componentWillMount-end');
-      },
+      }
 
-      componentDidMount: function() {
+      componentDidMount() {
         this.peekAtState('componentDidMount-start');
         this.setState(
           {color: 'yellow'},
           this.peekAtCallback('setState-yellow'),
         );
         this.peekAtState('componentDidMount-end');
-      },
+      }
 
-      componentWillReceiveProps: function(newProps) {
+      componentWillReceiveProps(newProps) {
         this.peekAtState('componentWillReceiveProps-start');
         if (newProps.nextColor) {
           this.setState(function(state) {
             this.peekAtState('before-setState-receiveProps', state);
             return {color: newProps.nextColor};
           });
-          this.replaceState({color: undefined});
-          this.setState(
-            function(state) {
-              this.peekAtState('before-setState-again-receiveProps', state);
-              return {color: newProps.nextColor};
-            },
-            this.peekAtCallback('setState-receiveProps'),
-          );
+          // No longer a public API, but we can test that it works internally by
+          // reaching into the updater.
+          this.updater.enqueueReplaceState(this, {color: undefined});
+          this.setState(function(state) {
+            this.peekAtState('before-setState-again-receiveProps', state);
+            return {color: newProps.nextColor};
+          }, this.peekAtCallback('setState-receiveProps'));
           this.setState(function(state) {
             this.peekAtState('after-setState-receiveProps', state);
           });
         }
         this.peekAtState('componentWillReceiveProps-end');
-      },
+      }
 
-      shouldComponentUpdate: function(nextProps, nextState) {
+      shouldComponentUpdate(nextProps, nextState) {
         this.peekAtState('shouldComponentUpdate-currentState');
         this.peekAtState('shouldComponentUpdate-nextState', nextState);
         return true;
-      },
+      }
 
-      componentWillUpdate: function(nextProps, nextState) {
+      componentWillUpdate(nextProps, nextState) {
         this.peekAtState('componentWillUpdate-currentState');
         this.peekAtState('componentWillUpdate-nextState', nextState);
-      },
+      }
 
-      componentDidUpdate: function(prevProps, prevState) {
+      componentDidUpdate(prevProps, prevState) {
         this.peekAtState('componentDidUpdate-currentState');
         this.peekAtState('componentDidUpdate-prevState', prevState);
-      },
+      }
 
-      componentWillUnmount: function() {
+      componentWillUnmount() {
         this.peekAtState('componentWillUnmount');
-      },
-    });
+      }
+    };
   });
 
   it('should support setting state', () => {
@@ -183,17 +178,9 @@ describe('ReactCompositeComponent-state', () => {
       // setState({color:'green'}) only enqueues a pending state.
       ['componentWillReceiveProps-end', 'yellow'],
       // pending state queue is processed
-    ];
-
-    if (ReactDOMFeatureFlags.useFiber) {
-      // In Stack, this is never called because replaceState drops all updates
-      // from the queue. In Fiber, we keep updates in the queue to support
+      // We keep updates in the queue to support
       // replaceState(prevState => newState).
-      // TODO: Fix Stack to match Fiber.
-      expected.push(['before-setState-receiveProps', 'yellow']);
-    }
-
-    expected.push(
+      ['before-setState-receiveProps', 'yellow'],
       ['before-setState-again-receiveProps', undefined],
       ['after-setState-receiveProps', 'green'],
       ['shouldComponentUpdate-currentState', 'yellow'],
@@ -224,7 +211,7 @@ describe('ReactCompositeComponent-state', () => {
       // unmountComponent()
       // state is available within `componentWillUnmount()`
       ['componentWillUnmount', 'blue'],
-    );
+    ];
 
     expect(stateListener.mock.calls.join('\n')).toEqual(expected.join('\n'));
   });
@@ -293,20 +280,7 @@ describe('ReactCompositeComponent-state', () => {
       child.setState({bar: false});
     });
     // We expect the same thing to happen if we bail out in the middle.
-    expect(ops).toEqual(
-      ReactDOMFeatureFlags.useFiber
-        ? [
-            // Fiber works as expected
-            'child did update',
-            'parent did update',
-          ]
-        : [
-            // Stack treats these as two separate updates and therefore the order
-            // is inverse.
-            'parent did update',
-            'child did update',
-          ],
-    );
+    expect(ops).toEqual(['child did update', 'parent did update']);
   });
 
   it('should batch unmounts', () => {
@@ -444,6 +418,46 @@ describe('ReactCompositeComponent-state', () => {
     expect(console.error.calls.count()).toEqual(1);
     expect(console.error.calls.argsFor(0)[0]).toEqual(
       'Warning: Test.componentWillReceiveProps(): Assigning directly to ' +
+        "this.state is deprecated (except inside a component's constructor). " +
+        'Use setState instead.',
+    );
+  });
+
+  it('should treat assigning to this.state inside cWM as a replaceState, with a warning', () => {
+    spyOn(console, 'error');
+
+    let ops = [];
+    class Test extends React.Component {
+      state = {step: 1, extra: true};
+      componentWillMount() {
+        this.setState({step: 2}, () => {
+          // Tests that earlier setState callbacks are not dropped
+          ops.push(
+            `callback -- step: ${this.state.step}, extra: ${!!this.state.extra}`,
+          );
+        });
+        // Treat like replaceState
+        this.state = {step: 3};
+      }
+      render() {
+        ops.push(
+          `render -- step: ${this.state.step}, extra: ${!!this.state.extra}`,
+        );
+        return null;
+      }
+    }
+
+    // Mount
+    const container = document.createElement('div');
+    ReactDOM.render(<Test />, container);
+
+    expect(ops).toEqual([
+      'render -- step: 3, extra: false',
+      'callback -- step: 3, extra: false',
+    ]);
+    expect(console.error.calls.count()).toEqual(1);
+    expect(console.error.calls.argsFor(0)[0]).toEqual(
+      'Warning: Test.componentWillMount(): Assigning directly to ' +
         "this.state is deprecated (except inside a component's constructor). " +
         'Use setState instead.',
     );

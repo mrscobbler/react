@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -60,13 +58,14 @@ describe('ReactBrowserEventEmitter', () => {
     jest.resetModules();
     LISTENER.mockClear();
     EventListener = require('fbjs/lib/EventListener');
+    // TODO: can we express this test with only public API?
     EventPluginHub = require('EventPluginHub');
     EventPluginRegistry = require('EventPluginRegistry');
     React = require('react');
     ReactDOM = require('react-dom');
     ReactDOMComponentTree = require('ReactDOMComponentTree');
     ReactBrowserEventEmitter = require('ReactBrowserEventEmitter');
-    ReactTestUtils = require('ReactTestUtils');
+    ReactTestUtils = require('react-dom/test-utils');
     TapEventPlugin = require('TapEventPlugin');
 
     var container = document.createElement('div');
@@ -76,7 +75,7 @@ describe('ReactBrowserEventEmitter', () => {
     var CHILD_PROPS = {};
 
     function Child(props) {
-      return <div ref={c => CHILD = c} {...props} />;
+      return <div ref={c => (CHILD = c)} {...props} />;
     }
 
     class ChildWrapper extends React.PureComponent {
@@ -87,8 +86,8 @@ describe('ReactBrowserEventEmitter', () => {
 
     function renderTree() {
       ReactDOM.render(
-        <div ref={c => GRANDPARENT = c} {...GRANDPARENT_PROPS}>
-          <div ref={c => PARENT = c} {...PARENT_PROPS}>
+        <div ref={c => (GRANDPARENT = c)} {...GRANDPARENT_PROPS}>
+          <div ref={c => (PARENT = c)} {...PARENT_PROPS}>
             <ChildWrapper {...CHILD_PROPS} />
           </div>
         </div>,

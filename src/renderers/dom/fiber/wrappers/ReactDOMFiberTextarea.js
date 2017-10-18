@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ReactDOMFiberTextarea
  * @flow
@@ -19,10 +17,13 @@ type TextAreaWithWrapperState = HTMLTextAreaElement & {
 };
 
 var ReactControlledValuePropTypes = require('ReactControlledValuePropTypes');
-var {getCurrentFiberOwnerName} = require('ReactDebugCurrentFiber');
 
 var invariant = require('fbjs/lib/invariant');
-var warning = require('fbjs/lib/warning');
+
+if (__DEV__) {
+  var warning = require('fbjs/lib/warning');
+  var {getCurrentFiberStackAddendum} = require('ReactDebugCurrentFiber');
+}
 
 var didWarnValDefaultVal = false;
 
@@ -52,8 +53,9 @@ var ReactDOMTextarea = {
     // Always set children to the same thing. In IE9, the selection range will
     // get reset if `textContent` is mutated.  We could add a check in setTextContent
     // to only set the value if/when the value differs from the node value (which would
-    // completely solve this IE9 bug), but Sebastian+Ben seemed to like this solution.
-    // The value can be a boolean or object so that's why it's forced to be a string.
+    // completely solve this IE9 bug), but Sebastian+Sophie seemed to like this
+    // solution. The value can be a boolean or object so that's why it's forced
+    // to be a string.
     var hostProps = Object.assign({}, props, {
       value: undefined,
       defaultValue: undefined,
@@ -63,13 +65,13 @@ var ReactDOMTextarea = {
     return hostProps;
   },
 
-  mountWrapper: function(element: Element, props: Object) {
+  initWrapperState: function(element: Element, props: Object) {
     var node = ((element: any): TextAreaWithWrapperState);
     if (__DEV__) {
       ReactControlledValuePropTypes.checkPropTypes(
         'textarea',
         props,
-        getCurrentFiberOwnerName(),
+        getCurrentFiberStackAddendum,
       );
       if (
         props.value !== undefined &&

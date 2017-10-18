@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails react-core
  */
@@ -13,10 +11,16 @@
 
 describe('ReactChildren', () => {
   var React;
+  var ReactTestUtils;
+
+  function normalizeCodeLocInfo(str) {
+    return str && str.replace(/at .+?:\d+/g, 'at **');
+  }
 
   beforeEach(() => {
     jest.resetModules();
     React = require('react');
+    ReactTestUtils = require('react-dom/test-utils');
   });
 
   it('should support identity for simple', () => {
@@ -716,7 +720,8 @@ describe('ReactChildren', () => {
     );
 
     var mappedWithClone = React.Children.map(instance.props.children, element =>
-      React.cloneElement(element));
+      React.cloneElement(element),
+    );
 
     expect(mapped[0].key).toBe(mappedWithClone[0].key);
   });
@@ -734,7 +739,8 @@ describe('ReactChildren', () => {
     );
 
     var mappedWithClone = React.Children.map(instance.props.children, element =>
-      React.cloneElement(element, {key: 'unique'}));
+      React.cloneElement(element, {key: 'unique'}),
+    );
 
     expect(mapped[0].key).toBe(mappedWithClone[0].key);
   });
@@ -830,6 +836,25 @@ describe('ReactChildren', () => {
     ]);
   });
 
+  it('should escape keys', () => {
+    var zero = <div key="1" />;
+    var one = <div key="1=::=2" />;
+    var instance = (
+      <div>
+        {zero}
+        {one}
+      </div>
+    );
+    var mappedChildren = React.Children.map(
+      instance.props.children,
+      kid => kid,
+    );
+    expect(mappedChildren).toEqual([
+      <div key=".$1" />,
+      <div key=".$1=0=2=2=02" />,
+    ]);
+  });
+
   it('should throw on object', () => {
     expect(function() {
       React.Children.forEach({a: 1, b: 2}, function() {}, null);
@@ -849,5 +874,52 @@ describe('ReactChildren', () => {
       'Objects are not valid as a React child (found: /abc/). If you meant ' +
         'to render a collection of children, use an array instead.',
     );
+  });
+
+  describe('with fragments enabled', () => {
+    it('warns for keys for arrays of elements in a fragment', () => {
+      spyOn(console, 'error');
+      class ComponentReturningArray extends React.Component {
+        render() {
+          return [<div />, <div />];
+        }
+      }
+
+      ReactTestUtils.renderIntoDocument(<ComponentReturningArray />);
+
+      expectDev(console.error.calls.count()).toBe(1);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: ' +
+          'Each child in an array or iterator should have a unique "key" prop.' +
+          ' See https://fb.me/react-warning-keys for more information.' +
+          '\n    in ComponentReturningArray (at **)',
+      );
+    });
+
+    it('does not warn when there are keys on  elements in a fragment', () => {
+      spyOn(console, 'error');
+      class ComponentReturningArray extends React.Component {
+        render() {
+          return [<div key="foo" />, <div key="bar" />];
+        }
+      }
+
+      ReactTestUtils.renderIntoDocument(<ComponentReturningArray />);
+
+      expectDev(console.error.calls.count()).toBe(0);
+    });
+
+    it('warns for keys for arrays at the top level', () => {
+      spyOn(console, 'error');
+
+      ReactTestUtils.renderIntoDocument([<div />, <div />]);
+
+      expectDev(console.error.calls.count()).toBe(1);
+      expectDev(normalizeCodeLocInfo(console.error.calls.argsFor(0)[0])).toBe(
+        'Warning: ' +
+          'Each child in an array or iterator should have a unique "key" prop.' +
+          ' See https://fb.me/react-warning-keys for more information.',
+      );
+    });
   });
 });

@@ -1,10 +1,8 @@
 /**
- * Copyright 2013-present, Facebook, Inc.
- * All rights reserved.
+ * Copyright (c) 2013-present, Facebook, Inc.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule ReactDOMFiberSelect
  * @flow
@@ -21,9 +19,12 @@ type SelectWithWrapperState = HTMLSelectElement & {
 
 var ReactControlledValuePropTypes = require('ReactControlledValuePropTypes');
 var {getCurrentFiberOwnerName} = require('ReactDebugCurrentFiber');
-var warning = require('fbjs/lib/warning');
 
-var didWarnValueDefaultValue = false;
+if (__DEV__) {
+  var didWarnValueDefaultValue = false;
+  var warning = require('fbjs/lib/warning');
+  var {getCurrentFiberStackAddendum} = require('ReactDebugCurrentFiber');
+}
 
 function getDeclarationErrorAddendum() {
   var ownerName = getCurrentFiberOwnerName();
@@ -42,7 +43,7 @@ function checkSelectPropTypes(props) {
   ReactControlledValuePropTypes.checkPropTypes(
     'select',
     props,
-    getCurrentFiberOwnerName(),
+    getCurrentFiberStackAddendum,
   );
 
   for (var i = 0; i < valuePropNames.length; i++) {
@@ -75,6 +76,7 @@ function updateOptions(
   node: HTMLSelectElement,
   multiple: boolean,
   propValue: any,
+  setDefaultSelected: boolean,
 ) {
   type IndexableHTMLOptionsCollection = HTMLOptionsCollection & {
     [key: number]: HTMLOptionElement,
@@ -85,26 +87,37 @@ function updateOptions(
     let selectedValues = (propValue: Array<string>);
     let selectedValue = {};
     for (let i = 0; i < selectedValues.length; i++) {
-      selectedValue['' + selectedValues[i]] = true;
+      // Prefix to avoid chaos with special keys.
+      selectedValue['$' + selectedValues[i]] = true;
     }
     for (let i = 0; i < options.length; i++) {
-      var selected = selectedValue.hasOwnProperty(options[i].value);
+      var selected = selectedValue.hasOwnProperty('$' + options[i].value);
       if (options[i].selected !== selected) {
         options[i].selected = selected;
+      }
+      if (selected && setDefaultSelected) {
+        options[i].defaultSelected = true;
       }
     }
   } else {
     // Do not set `select.value` as exact behavior isn't consistent across all
     // browsers for all cases.
     let selectedValue = '' + (propValue: string);
+    let defaultSelected = null;
     for (let i = 0; i < options.length; i++) {
       if (options[i].value === selectedValue) {
         options[i].selected = true;
+        if (setDefaultSelected) {
+          options[i].defaultSelected = true;
+        }
         return;
       }
+      if (defaultSelected === null && !options[i].disabled) {
+        defaultSelected = options[i];
+      }
     }
-    if (options.length) {
-      options[0].selected = true;
+    if (defaultSelected !== null) {
+      defaultSelected.selected = true;
     }
   }
 }
@@ -131,7 +144,7 @@ var ReactDOMSelect = {
     });
   },
 
-  mountWrapper: function(element: Element, props: Object) {
+  initWrapperState: function(element: Element, props: Object) {
     var node = ((element: any): SelectWithWrapperState);
     if (__DEV__) {
       checkSelectPropTypes(props);
@@ -143,27 +156,33 @@ var ReactDOMSelect = {
       wasMultiple: !!props.multiple,
     };
 
-    if (
-      props.value !== undefined &&
-      props.defaultValue !== undefined &&
-      !didWarnValueDefaultValue
-    ) {
-      warning(
-        false,
-        'Select elements must be either controlled or uncontrolled ' +
-          '(specify either the value prop, or the defaultValue prop, but not ' +
-          'both). Decide between using a controlled or uncontrolled select ' +
-          'element and remove one of these props. More info: ' +
-          'https://fb.me/react-controlled-components',
-      );
-      didWarnValueDefaultValue = true;
+    if (__DEV__) {
+      if (
+        props.value !== undefined &&
+        props.defaultValue !== undefined &&
+        !didWarnValueDefaultValue
+      ) {
+        warning(
+          false,
+          'Select elements must be either controlled or uncontrolled ' +
+            '(specify either the value prop, or the defaultValue prop, but not ' +
+            'both). Decide between using a controlled or uncontrolled select ' +
+            'element and remove one of these props. More info: ' +
+            'https://fb.me/react-controlled-components',
+        );
+        didWarnValueDefaultValue = true;
+      }
     }
+  },
 
+  postMountWrapper: function(element: Element, props: Object) {
+    var node = ((element: any): SelectWithWrapperState);
     node.multiple = !!props.multiple;
+    var value = props.value;
     if (value != null) {
-      updateOptions(node, !!props.multiple, value);
+      updateOptions(node, !!props.multiple, value, false);
     } else if (props.defaultValue != null) {
-      updateOptions(node, !!props.multiple, props.defaultValue);
+      updateOptions(node, !!props.multiple, props.defaultValue, true);
     }
   },
 
@@ -178,14 +197,14 @@ var ReactDOMSelect = {
 
     var value = props.value;
     if (value != null) {
-      updateOptions(node, !!props.multiple, value);
+      updateOptions(node, !!props.multiple, value, false);
     } else if (wasMultiple !== !!props.multiple) {
       // For simplicity, reapply `defaultValue` if `multiple` is toggled.
       if (props.defaultValue != null) {
-        updateOptions(node, !!props.multiple, props.defaultValue);
+        updateOptions(node, !!props.multiple, props.defaultValue, true);
       } else {
         // Revert the select back to its default unselected state.
-        updateOptions(node, !!props.multiple, props.multiple ? [] : '');
+        updateOptions(node, !!props.multiple, props.multiple ? [] : '', false);
       }
     }
   },
@@ -195,7 +214,7 @@ var ReactDOMSelect = {
     var value = props.value;
 
     if (value != null) {
-      updateOptions(node, !!props.multiple, value);
+      updateOptions(node, !!props.multiple, value, false);
     }
   },
 };
